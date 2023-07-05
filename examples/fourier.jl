@@ -1,4 +1,4 @@
-using FFTW, GLMakie
+using FFTW, GLMakie, ProgressBars
 using ReactingTracers
 N = 64
 x = nodes(64)
@@ -26,9 +26,12 @@ y2d = reshape(x, (1, 64))
 z = sin.(x2d) .* sin.(y2d)
 dz = real.(ifft(∂y2d .* fft(z)))
 
-fig = Figure()
-ax1 = Axis(fig[1, 1])
-heatmap!(ax1, x2d[:], y2d[:], z)
-ax2 = Axis(fig[1, 2])
-heatmap!(ax2, x2d[:], y2d[:], dz)
-display(fig)
+for i in ProgressBar(1:10)
+    println(i)
+    fig = Figure()
+    ax1 = Axis(fig[1, 1])
+    heatmap!(ax1, x2d[:], y2d[:], z)
+    ax2 = Axis(fig[1, 2])
+    heatmap!(ax2, x2d[:], y2d[:], dz .^i)
+    display(fig)
+end
