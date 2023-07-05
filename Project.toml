@@ -2,3 +2,7 @@ name = "ReactingTracers"
 uuid = "8817fd71-a3b6-475f-89ad-c970c8d1f437"
 authors = ["cotton "]
 version = "0.1.0"
+
+[deps]
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
