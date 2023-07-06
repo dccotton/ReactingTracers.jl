@@ -45,6 +45,7 @@ size(Δconc)
 t=0
 tmax=1000
 tpl=1 # plots every timestep  = 1
+t_array = collect(t:dt:tmax)
 
 f = Figure()
 Axis(f[1, 1])
@@ -57,7 +58,7 @@ f
 cs=zeros(x_length, tmax);
 fs=zeros(x_length, tmax);
 c_p=c;
-while t<tmax+dt/2
+for t in ProgressBar(t_array)
   if rem(t,tpl)==0
     if t > 0
       print(t)
@@ -75,7 +76,6 @@ while t<tmax+dt/2
   dc=adv(c,ox*u,kappa,k)
   c = c +  dc*dt + la*dt*(-c-c .^2 + Δconc +c.*Δconc)./(1 .+ Δconc)
   #c = c +  dc*dt + la*dt*(1+c).*(1-abs(1+c)./(1+delta));
-  global t = t + dt
   u = u - r*dt*u+rfac*randn(1,N)
   ind = findall(u -> abs(u) >= 5, u)
   u[ind] .= 5
