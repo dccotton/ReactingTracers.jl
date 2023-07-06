@@ -1,6 +1,7 @@
 using Statistics
 using FFTW, GLMakie, ProgressBars
 using ReactingTracers
+using JLD2
 
 function adv(c,um,kappa,k)
     ch=fft(c)#
@@ -36,7 +37,8 @@ c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x f
 
 # concentration bias
 mag = 0.1;
-Δconc = mag*sin.(2*pi/1*x);
+lengthscale = 1
+Δconc = mag*sin.(2*pi/1*lengthscale);
 Δconc = Δconc*ones(1, 10);
 
 # plotting parameters
@@ -89,3 +91,7 @@ Axis(f3[1, 1])
 lines!(gc[:],ff[:])
 #title(num2str(t));
 f3
+
+save_name = "mag_" * string(mag) * "_k_" * string(lengthscale) * "_FT.jld2"
+
+@save save_name cs fs ff cf gc
