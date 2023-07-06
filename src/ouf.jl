@@ -37,10 +37,10 @@ c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x f
 
 # concentration bias
 mag = 0.1;
-lengthscale = 1
-Δconc = mag*sin.(2*pi/1*lengthscale);
+lengthscale = 2*pi/5
+Δconc = mag*sin.(2*pi/lengthscale*x)
 Δconc = Δconc*ones(1, 10);
-
+size(Δconc)
 # plotting parameters
 t=0
 tmax=1000
@@ -50,6 +50,7 @@ f = Figure()
 Axis(f[1, 1])
 lines!(x,mean(c,dims=2)[:])
 lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+lines!(x,Δconc[:, 1])
 #title(num2str(t));
 f
 
