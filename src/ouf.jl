@@ -36,8 +36,8 @@ c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x f
 
 # concentration bias
 mag = 0.1;
-delta = mag*sin.(2*pi/1*x);
-delta = delta*ones(1, 10);
+Δconc = mag*sin.(2*pi/1*x);
+Δconc = Δconc*ones(1, 10);
 
 # plotting parameters
 t=0
@@ -51,33 +51,41 @@ lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x
 #title(num2str(t));
 f
 
-cs=[];
-fs=[];
+cs=zeros(x_length, tmax);
+fs=zeros(x_length, tmax);
 c_p=c;
 while t<tmax+dt/2
   if rem(t,tpl)==0
-    f = Figure()
-    Axis(f[1, 1])
-    lines!(x,mean(c,dims=2)[:])
-    lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
-    #title(num2str(t));
-    f
-    cs=[cs,mean(c,dims = 2)]
-    fs=[fs,(1/N)*c*u']
+    if t > 0
+      print(t)
+      f2 = Figure()
+      Axis(f2[1, 1])
+      lines!(x,mean(c,dims=2)[:])
+      lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+      #title(num2str(t));
+      f2
+      cs[:, Int(t)]= mean(c,dims = 2)
+      fs[:, Int(t)]= (1/N)*c*u'
+    end
   end
-  tmp=c;c=1.5*c-0.5*c_p;c_p=c;
-  dc=adv(c,ox*u,kappa,k);
-  c = c +  dc*dt + la*dt*(-c-c.^2+delta+c.*delta)./(1+delta)
+  tmp=c;c=1.5*c-0.5*c_p;c_p=c #not sure why glenn has added this line?
+  dc=adv(c,ox*u,kappa,k)
+  c = c +  dc*dt + la*dt*(-c-c .^2 + Δconc +c.*Δconc)./(1 .+ Δconc)
   #c = c +  dc*dt + la*dt*(1+c).*(1-abs(1+c)./(1+delta));
-  t = t + dt;
-  u = u - r*dt*u+rfac*randn(1,N);
-
-    ind = findall(u -> abs(u) >= 5, u)
-    u[ind] .= 5
+  global t = t + dt
+  u = u - r*dt*u+rfac*randn(1,N)
+  ind = findall(u -> abs(u) >= 5, u)
+  u[ind] .= 5
 end
 
+#cf=mean(cs[:,2:end],dims = 2)
+#ff=mean(fs[:,2:end],dims = 2)
 cf=mean(cs[:,201:end],dims = 2);
 ff=mean(fs[:,201:end],dims = 2);
-gc=real(ifft(i*k[:,1].*fft(cf)));
+gc=real(ifft(im*k[:,1].*fft(cf)));
 
-#plot(gc,ff,[min(gc),max(gc)],[0,0],'--k',[0,0],[min(ff),max(ff)],'--k')
+f3 = Figure()
+Axis(f3[1, 1])
+lines!(gc[:],ff[:])
+#title(num2str(t));
+f3
