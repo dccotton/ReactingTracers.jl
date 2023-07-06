@@ -65,11 +65,11 @@ for div in ProgressBar(divisor)
       if t > 0
         print(t)
         f2 = Figure()
-        Axis(f2[1, 1])
-        lines!(x,mean(c,dims=2)[:])
-        lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+        ax = Axis(f2[1, 1])
+        lines!(ax, x,mean(c,dims=2)[:])
+        lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
         #title(num2str(t));
-        f2
+        display(f2)
         cs[:, Int(t)]= mean(c,dims = 2)
         fs[:, Int(t)]= (1/N)*c*u'
       end
