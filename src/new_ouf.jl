@@ -16,7 +16,8 @@ function adv_closure(x)
   ℱ⁻¹ = plan_ifft(x, 1)
   function adv(c,um,kappa,k)
     ch = ℱ * c
-    dc=real(ℱ⁻¹ * (-im*k.*ch.*um-kappa*k.*k.*ch)) #d/dx --> =-ik
+    tmp = -im*k.*ch.*um-kappa*k.*k.*ch
+    dc=real.(ℱ⁻¹ * tmp) #d/dx --> =-ik
     return dc
   end
 end
