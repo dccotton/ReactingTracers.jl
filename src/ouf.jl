@@ -26,8 +26,8 @@ x = nodes(x_length)
 k  = wavenumbers(x_length)
 
 ox=ones(x_length,1);
-
-divisor = [1, 2.5, 5, 10, 20, 40]
+#divisor = varu/r*[0.1, 0.5, 1, 2, 5, 10] # the lengthscale of the concentration gradient = <v>*tau*[.. , .. , ..]
+divisor = varu/r*4*pi*[1/126, 1/63, 1/25, 1/13, 1/2, 1] #chooses divisor such that it's periodic
 for div in ProgressBar(divisor)
   # initiate velocities
   u=randn(1,N)*varu #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
@@ -38,9 +38,8 @@ for div in ProgressBar(divisor)
   c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
 
   # concentration bias
-  mag = 0.7;
-  lengthscale = 2*pi/div
-  Δconc = mag*sin.(2*pi/lengthscale*x)
+  mag = 0.1;
+  Δconc = mag*sin.(2*pi/div*x)
   Δconc = Δconc*ones(1, 10);
   size(Δconc)
   # plotting parameters
@@ -49,13 +48,15 @@ for div in ProgressBar(divisor)
   tpl=1 # plots every timestep  = 1
   t_array = collect(t:dt:tmax)
 
-  f = Figure()
-  Axis(f[1, 1])
-  lines!(x,mean(c,dims=2)[:])
-  lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
-  lines!(x,Δconc[:, 1])
-  #title(num2str(t));
-  f
+  fig = Figure()
+  ax = Axis(fig[1, 1], xlabel = L"x",
+    xlabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
+    xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
+  lines!(x,mean(c,dims=2)[:], label = L"\overline{c}")
+  lines!(x,(1/N)*c*u'[:], label = L"\overline{uc}") #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+  lines!(x,Δconc[:, 1], label = L"\Delta(x)")
+  axislegend()#position = :rt, bgcolor = (:grey90, 0.25));
+  fig
 
   cs=zeros(x_length, tmax);
   fs=zeros(x_length, tmax);
@@ -63,13 +64,12 @@ for div in ProgressBar(divisor)
   for t in ProgressBar(t_array)
     if rem(t,tpl)==0
       if t > 0
-        print(t)
         f2 = Figure()
-        Axis(f2[1, 1])
-        lines!(x,mean(c,dims=2)[:])
-        lines!(x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+        ax = Axis(f2[1, 1])
+        lines!(ax, x,mean(c,dims=2)[:])
+        lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
         #title(num2str(t));
-        f2
+        display(f2)
         cs[:, Int(t)]= mean(c,dims = 2)
         fs[:, Int(t)]= (1/N)*c*u'
       end
@@ -95,7 +95,7 @@ for div in ProgressBar(divisor)
   #title(num2str(t));
   f3
 
-  save_name = "mag_" * string(mag) * "_k_" * string(lengthscale) * "_FT.jld2"
+  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_FT.jld2"
 
   @save save_name cs fs ff cf gc
 end
