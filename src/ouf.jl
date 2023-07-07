@@ -28,6 +28,8 @@ k  = wavenumbers(x_length)
 ox=ones(x_length,1);
 #divisor = varu/r*[0.1, 0.5, 1, 2, 5, 10] # the lengthscale of the concentration gradient = <v>*tau*[.. , .. , ..]
 divisor = varu/r*4*pi*[1/126, 1/63, 1/25, 1/13, 1/2, 1] #chooses divisor such that it's periodic
+mags = [0.4, 0.6, 0.3]
+for mag in ProgressBar(mags)
 for div in ProgressBar(divisor)
   # initiate velocities
   u=randn(1,N)*varu #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
@@ -38,7 +40,7 @@ for div in ProgressBar(divisor)
   c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
 
   # concentration bias
-  mag = 0.1;
+  #mag = 0.8;
   Δconc = mag*sin.(2*pi/div*x)
   Δconc = Δconc*ones(1, 10);
   size(Δconc)
@@ -64,12 +66,12 @@ for div in ProgressBar(divisor)
   for t in ProgressBar(t_array)
     if rem(t,tpl)==0
       if t > 0
-        f2 = Figure()
-        ax = Axis(f2[1, 1])
-        lines!(ax, x,mean(c,dims=2)[:])
-        lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+        #f2 = Figure()
+        #ax = Axis(f2[1, 1])
+        #lines!(ax, x,mean(c,dims=2)[:])
+        #lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
         #title(num2str(t));
-        display(f2)
+        #display(f2)
         cs[:, Int(t)]= mean(c,dims = 2)
         fs[:, Int(t)]= (1/N)*c*u'
       end
@@ -98,4 +100,5 @@ for div in ProgressBar(divisor)
   save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_FT.jld2"
 
   @save save_name cs fs ff cf gc
+end
 end
