@@ -91,9 +91,9 @@ for div in ProgressBar(divisor)
 
   f3 = Figure()
   Axis(f3[1, 1])
-  lines!(gc[:],ff[:])
+  lines!(ax, gc[:],ff[:])
   #title(num2str(t));
-  f3
+  display(f3)
 
   save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_FT.jld2"
 
