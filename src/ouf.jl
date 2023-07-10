@@ -27,8 +27,10 @@ k  = wavenumbers(x_length)
 
 ox=ones(x_length,1);
 #divisor = varu/r*[0.1, 0.5, 1, 2, 5, 10] # the lengthscale of the concentration gradient = <v>*tau*[.. , .. , ..]
-divisor = varu/r*4*pi*[1/126, 1/63, 1/25, 1/13, 1/2, 1] #chooses divisor such that it's periodic
-mags = [0.4, 0.6, 0.3]
+mags = [0.05, 0.025]
+#mags = [0.7, 0.5, 0.1, 0.2, 0.3, 0.4, 0.6]
+divisor = [1, 3, 6, 13, 25, 63, 125]
+#divisor = varu/r*4*pi*[1/126, 1/63, 1/25, 1/13, 1/2, 1] #chooses divisor such that it's periodic
 for mag in ProgressBar(mags)
 for div in ProgressBar(divisor)
   # initiate velocities
@@ -41,7 +43,8 @@ for div in ProgressBar(divisor)
 
   # concentration bias
   #mag = 0.8;
-  Δconc = mag*sin.(2*pi/div*x)
+  Δconc = mag*sin.(div*x)
+  #Δconc = mag*sin.(2*pi/div*x)
   Δconc = Δconc*ones(1, 10);
   size(Δconc)
   # plotting parameters
@@ -76,7 +79,7 @@ for div in ProgressBar(divisor)
         fs[:, Int(t)]= (1/N)*c*u'
       end
     end
-    tmp=c;c=1.5*c-0.5*c_p;c_p=c #not sure why glenn has added this line?
+    tmp=c;c=1.5*c-0.5*c_p;c_p=tmp #not sure why glenn has added this line?
     dc=adv(c,ox*u,kappa,k)
     c = c +  dc*dt + la*dt*(-c-c .^2 + Δconc +c.*Δconc)./(1 .+ Δconc)
     #c = c +  dc*dt + la*dt*(1+c).*(1-abs(1+c)./(1+delta));

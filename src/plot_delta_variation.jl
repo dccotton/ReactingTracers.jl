@@ -28,19 +28,20 @@ function name_figure(plot_panels, plot_divisor, plot_four, take_fourier_transfor
 end
 
 # choose what to plot
-plot_panels = false #true # either plots all the data in one plot or on separate panels
-plot_divisor = false #true #false #true #false #true # either plot the effect of varying magnitude or varying divisor
-take_fourier_transform = false #true
-plot_four = true # only plot four panels to stop things becoming cluttered (can't have plot_panels true and this true as well)
+plot_panels = true #false #true # either plots all the data in one plot or on separate panels
+plot_divisor = true #false #true #false #true #false #true # either plot the effect of varying magnitude or varying divisor
+take_fourier_transform = true #false #true
+plot_four = false #true # only plot four panels to stop things becoming cluttered (can't have plot_panels true and this true as well)
 
 varu=0.1   # variance of u
 r=0.2    # damping rate in OE
 
 # variables to choose to plot
-mag = 0.7
+mag = 0.5
 div = 13
 
 # options to choose from
+
 if plot_four
     magnitudes = [0.025, 0.1, 0.5, 0.7]
     divisor = [1, 13, 25, 125]
