@@ -3,10 +3,6 @@ using FFTW, GLMakie, ProgressBars
 using ReactingTracers
 using JLD2
 
-# timestep minimum
-#1/\kappa k^2
-#1\k^2
-
 function adv(c,um,kappa,k)
     ch=fft(c)#
     dc=real(ifft(-im*k.*ch.*um-kappa*k.*k.*ch)) #d/dx --> =-ik
@@ -26,44 +22,31 @@ function adv_closure(x)
   end
 end
 
-varu=0.1   # variance of u
+varu=0.5   # variance of u
 r=0.2    # damping rate in OE
 kappa=0.01    # "subgrid" kappa
-la=0.05    # relaxation to forcing
-dt=1/5250
+la=0.1    # relaxation to forcing
+dt=1/2048
 rfac=sqrt(2*varu*dt*r)
 
-N=10
+N=100
 av=1/N
 uamp=0.1
 
-for t in 1:100
-  print(t)
-  if t>50
-    break
-  end
-end
-
-test = [[1,2,3];[4,5,NaN]]
-any(isnan, test)
-
 # slighly different choice of x to Glenn
-x_length = 1024
-x = nodes(x_length, a = -pi, b = pi)
+x_length = 512
+x = nodes(x_length; a=-pi, b=pi)
 k  = wavenumbers(x_length)
 
 adv2 = adv_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
 #magnitudes = [0.7, 0.5, 0.1, 0.2, 0.3, 0.4, 0.6]
-magnitudes = [0.1, 0.5]
-divisor = [25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
+magnitudes = [0.7]
+divisor = [3]
 for mag in magnitudes
 for div in ProgressBar(divisor)
-    if any(isnan, c)
-      break
-    end
-  # initiate velocities
+    # initiate velocities
     u=randn(1,N)*varu #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
     ind = findall(u -> abs(u) >= 5, u)
     u[ind] .= 5
@@ -75,7 +58,7 @@ for div in ProgressBar(divisor)
     #mag = 0.1;
     #Δconc = mag*sin.(2*pi/div*x)
     Δconc = mag*cos.(div*x)
-    Δconc = Δconc*ones(1, 10);
+    Δconc = Δconc*ones(1, N);
     size(Δconc)
     # plotting parameters
     t=0
@@ -115,9 +98,7 @@ for div in ProgressBar(divisor)
       @. c = 1.5*c-0.5*c_p;
       c_p .= c #get previous timestep, not sure why glenn has added this line?
       dc .= adv2(c,ox*u,kappa,k)
-      #@. c = c +  dc*dt + la*dt*(-c-c .^2 + Δconc +c.*Δconc)./(1 .+ Δconc)
-      @. c = c +  dc*dt + la*dt*(1 + c)*(1-abs(1+c)/(1 + Δconc))
-      #@. c = c +  dc*dt + la*dt*(-c-c .^2 + Δconc +c.*Δconc)./(1 .+ Δconc)
+      @. c = c +  dc*dt + la*dt*(-c-c .^2 + Δconc +c.*Δconc)./(1 .+ Δconc)
       #c = c +  dc*dt + la*dt*(1+c).*(1-abs(1+c)./(1+delta));
       𝒩 = randn(1,N)
       @. u = u - r*dt*u+rfac*𝒩
@@ -136,7 +117,7 @@ for div in ProgressBar(divisor)
   #title(num2str(t));
   display(f3)
 
-  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_FT.jld2"
+  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "test_FT.jld2"
 
   @save save_name cs fs ff cf gc
 end

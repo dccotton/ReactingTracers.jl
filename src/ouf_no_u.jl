@@ -8,8 +8,9 @@ using JLD2
 function diff_closure(x)
   ℱ = plan_fft(x, 1)
   ℱ⁻¹ = plan_ifft(x, 1)
-  function diff(c, κ, k, dt)
+  function diff(c, κ, k, dt, Δ)
     ch = ℱ * c
+    c0 = 1 .+ Δ
     @. ch = ch*(1/dt + λ*(1-ch/c0))/(1/dt - κ*k^2)
     c_new = ℱ⁻¹ * ch
     return c_new
@@ -31,14 +32,17 @@ k  = wavenumbers(x_length)
 diff2 = diff_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
-magnitudes = [0.7, 0.5, 0.1]
+magnitudes = [0.7] #, 0.5, 0.1]
 divisor = [1, 3, 6, 13, 25]#, 63, 125]
 for mag in magnitudes
 for div in ProgressBar(divisor)
     
     # initial concentration
     c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
-
+    if any(isnan, c)
+      print("nan error")
+      break
+    end
     # concentration bias
     Δconc = mag*cos.(div*x)
     Δconc = Δconc*ones(1, 10);
@@ -72,10 +76,9 @@ for div in ProgressBar(divisor)
           #title(num2str(t));
           #display(f2)
           cs[:, Int(t)]= mean(c,dims = 2)
-          fs[:, Int(t)]= (1/N)*c*u'
         end
       end
-      c .= diff2(c,κ,k, dt)
+      c .= diff2(c, κ, k, dt, Δconc)
       
     end
   cf=mean(cs[:,201:end],dims = 2);
