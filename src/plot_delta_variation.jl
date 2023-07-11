@@ -4,7 +4,7 @@ using ReactingTracers
 using FFTW
 GLMakie.activate!(inline=false)
 
-function name_figure(plot_panels, plot_divisor, plot_four, take_fourier_transform)
+function name_figure(plot_panels, plot_divisor, plot_four, var_choice)
     if plot_panels
         plot_panels_name = "panels_"
     elseif plot_four
@@ -17,10 +17,14 @@ function name_figure(plot_panels, plot_divisor, plot_four, take_fourier_transfor
     else
         var_change_name = "L_" * string(round(div*r/varu; sigdigits = 3)) * "_"    
     end
-    if take_fourier_transform
+    if var_choice == 1
         method_name = "FT"
-    else
+    elseif var_choice == 2
         method_name = "flux"
+    elseif var_choice == 3
+        method_name = "concentration"
+    else
+        method_name = "concentration_squared"
     end
     
     fig_save_name = var_change_name * plot_panels_name * method_name * ".png"
@@ -30,8 +34,9 @@ end
 # choose what to plot
 plot_panels = true #false #true # either plots all the data in one plot or on separate panels
 plot_divisor = true #false #true #false #true #false #true # either plot the effect of varying magnitude or varying divisor
-take_fourier_transform = true
 plot_four = false #true # only plot four panels to stop things becoming cluttered (can't have plot_panels true and this true as well)
+var_choice = 1 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>
+
 
 varu=0.1   # variance of u
 r=0.2    # damping rate in OE
@@ -76,11 +81,8 @@ for var in variable
         mag = var
     end
     load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_FT.jld2"
-    #load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "nou_nok_FT.jld2"
-    #@load load_name cs cf gc
     @load load_name cs fs ff cf gc
-
-    if take_fourier_transform
+    if var_choice == 1
         #Δconc = mag*sin.(2*pi/div*x)
         Δconc = mag*sin.(div*x)
         ft_cf=abs.(fft(cf))[:]
@@ -108,7 +110,17 @@ for var in variable
             ax = Axis(fig[four_panels[nindx], four_panels[nindx+4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
             nindx= nindx + 1
         end
-        lines!(ax, gc[:],ff[:], label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+        if var_choice == 2
+            xvar = gc[:]
+            yvar = ff[:]
+        elseif var_choice ==3
+            xvar = x
+            yvar = cf[:]
+        else
+            xvar = x
+            yvar = mean(cs[:,201:end].*2,dims = 2);
+        end
+        lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
     end
 end
 if !plot_panels
@@ -116,7 +128,7 @@ if !plot_panels
 end
 display(fig)
 
-save(name_figure(plot_panels, plot_divisor, plot_four, take_fourier_transform), fig) #, pt_per_unit=2) # size = 600 x 450 pt
+save(name_figure(plot_panels, plot_divisor, plot_four, var_choice), fig) #, pt_per_unit=2) # size = 600 x 450 pt
 
 # test glenn's plots
 # 1) plot <c> and 1+Δ(x)
