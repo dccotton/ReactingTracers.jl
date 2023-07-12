@@ -11,31 +11,34 @@ function diff_closure(x)
   function diff(c, κ, k, dt, Δ)
     ch = ℱ * c
     c0 = 1 .+ Δ
-    @. ch = ch*(1/dt + λ*(1-ch/c0))/(1/dt - κ*k^2)
-    c_new = ℱ⁻¹ * ch
+    @. ch = (ch/dt + λ*(1+ch)*(1-(1+ch)/c0))/(1/dt - κ*k^2)
+    c_new = real.(ℱ⁻¹ * ch)
     return c_new
   end
 end
 
 κ=0.01    # "subgrid" kappa
 λ=0.05    # relaxation to forcing
-dt=1/5250 # need 1/dt > κ(x_length/2)^2
+x_length = 1024
+dt=2/(κ*x_length^2) # need 1/dt > κ(x_length/2)^2
 
 N=10
 av=1/N
 uamp=0.1
 
-x_length = 1024
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 diff2 = diff_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
-magnitudes = [0.7] #, 0.5, 0.1]
-divisor = [1, 3, 6, 13, 25]#, 63, 125]
+magnitudes = [0.7] #, 0.1, 0.1]
+divisor = [1] #, 3, 6, 13, 25]#,1, 3 63, 125]
+
+div = 1
+mag = 0.7
 for mag in magnitudes
-for div in ProgressBar(divisor)
+for div in divisor #ProgressBar(divisor)
     
     # initial concentration
     c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
@@ -50,6 +53,7 @@ for div in ProgressBar(divisor)
     # plotting parameters
     t=0
     tmax=1000
+    #tmax = 10
     tpl=1 # plots every timestep  = 1
     t_array = collect(t:dt:tmax)
 
@@ -76,6 +80,7 @@ for div in ProgressBar(divisor)
           #title(num2str(t));
           #display(f2)
           cs[:, Int(t)]= mean(c,dims = 2)
+          #print(c[100])
         end
       end
       c .= diff2(c, κ, k, dt, Δconc)
@@ -83,7 +88,7 @@ for div in ProgressBar(divisor)
     end
   cf=mean(cs[:,201:end],dims = 2);
   
-  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "nou_FT.jld2"
+  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ)* "nou_FT.jld2"
 
   @save save_name cs cf
 end
