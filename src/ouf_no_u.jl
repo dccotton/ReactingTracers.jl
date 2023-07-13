@@ -11,7 +11,10 @@ function diff_closure(x)
   function diff(c, κ, k, dt, Δ)
     ch = ℱ * c
     c0 = 1 .+ Δ
-    @. ch = (ch/dt + λ*(1+ch)*(1-(1+ch)/c0))/(1/dt - κ*k^2)
+    #@. ch = (ch/dt + λ*(1+ch)*(1-(1+ch)/c0))/(1/dt - κ*k^2)
+
+    ch2 = ℱ * c.^2
+    @. ch = (ch/dt + λ*(Δ - ch - (ch2 - ch*Δ))/c0)/(1/dt - κ*k^2)
     c_new = real.(ℱ⁻¹ * ch)
     return c_new
   end
@@ -29,34 +32,28 @@ uamp=0.1
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
-diff2 = diff_closure(zeros(x_length, N))
+diff2 = diff_closure(zeros(x_length))
 
-ox=ones(x_length,1);
 magnitudes = [0.7] #, 0.1, 0.1]
 divisor = [1] #, 3, 6, 13, 25]#,1, 3 63, 125]
 
-div = 1
-mag = 0.7
 for mag in magnitudes
 for div in divisor #ProgressBar(divisor)
     
     # initial concentration
-    c=x*zeros(1,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
-    if any(isnan, c)
-      print("nan error")
-      break
-    end
+    c=x.*zeros(length(x)); #+ 0.001*randn(1024,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
     # concentration bias
     Δconc = mag*cos.(div*x)
-    Δconc = Δconc*ones(1, 10);
+    #Δconc = Δconc*ones(1, 10);
     
     # plotting parameters
     t=0
     tmax=1000
-    #tmax = 10
-    tpl=1 # plots every timestep  = 1
-    t_array = collect(t:dt:tmax)
-
+    tmax = 10
+    #tpl=1 # plots every timestep  = 1
+    t_array = collect(t:dt:tmax);
+    t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
+    save_times = t_array[t_indices]
     #fig = Figure()
     #ax = Axis(fig[1, 1], xlabel = L"x",
     #  xlabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
@@ -71,19 +68,31 @@ for div in divisor #ProgressBar(divisor)
     fs=zeros(x_length, tmax);
 
     for t in ProgressBar(t_array)
-      if rem(t,tpl)==0
+      if minimum(abs.(save_times .- t)) == 0
         if t > 0
+          if any(isnan, c)
+            print("nan error")
+            break
+          end
           #f2 = Figure()
           #ax = Axis(f2[1, 1])
           #lines!(ax, x,mean(c,dims=2)[:])
           #lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
           #title(num2str(t));
           #display(f2)
-          cs[:, Int(t)]= mean(c,dims = 2)
-          #print(c[100])
+          print(c)
+          cs[:, round(Int, t)]= c
         end
       end
-      c .= diff2(c, κ, k, dt, Δconc)
+      #ch = fft(c)
+      #c0 = 1 .+ Δconc
+     
+      #ch2 = fft(c.^2)
+      #@. ch = (ch/dt + λ*(Δconc - ch - (ch2 - ch*Δconc))/c0)/(1/dt - κ*k^2)
+      #c_new = real.(ifft(ch))
+      #print(c_new)
+      c .= diff2(c, κ, k, dt, Δconc);
+      #c = c_new
       
     end
   cf=mean(cs[:,201:end],dims = 2);
@@ -94,3 +103,5 @@ for div in divisor #ProgressBar(divisor)
 end
 
 end
+
+@load("mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ)* "nou_FT.jld2", cs, cf)
