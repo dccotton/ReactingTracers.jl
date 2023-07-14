@@ -68,8 +68,8 @@ end
 
 ox=ones(x_length,1);
 #magnitudes = [0.7, 0.5, 0.1, 0.2, 0.3, 0.4, 0.6]
-magnitudes = [0.7, 0.1, 0.01]
-divisor = [1, 25] #[25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
+magnitudes = [0.01]
+divisor = [25] #[25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
 for mag in magnitudes
 for div in ProgressBar(divisor)
   # initiate velocities
@@ -91,7 +91,7 @@ for div in ProgressBar(divisor)
     # plotting parameters
     t_array = collect(t:dt:tmax);
     t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
-    save_times = t_array[t_indices]+1
+    save_times = round.(Int, t_array[t_indices] .+ 1)
 
     fig = Figure()
     ax = Axis(fig[1, 1], xlabel = L"x",
@@ -153,4 +153,4 @@ end
 
 end
 
-save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_0.02_FT.jld2"
+save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_FT.jld2"
