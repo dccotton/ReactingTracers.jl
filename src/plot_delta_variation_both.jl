@@ -8,7 +8,7 @@ GLMakie.activate!(inline=false)
 
 # use if wanting to vary both quantities
 
-function name_figure(plot_type, plot_divisor, var_choice)
+function name_figure(plot_type, var_choice, quantity_to_vary)
     if plot_type == 2
         plot_panels_name = "panels_"
     elseif plot_type == 3
@@ -24,6 +24,13 @@ function name_figure(plot_type, plot_divisor, var_choice)
         method_name = "concentration"
     else
         method_name = "concentration_squared"
+    end
+    if quantity_to_vary == 1
+        var = "_mag"
+    elseif quantity_to_vary == 2
+        var = "_k"
+    else
+        var = "_both"
     end
     
     fig_save_name = "both_" * plot_panels_name * method_name * ".png"
@@ -99,7 +106,8 @@ end
 # choose what to plot
 var_choice = 2 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels
-quantity_to_vary = 3 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both 
+quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both 
+no_u = false # either plot u = 0 or u non 0
 
 varu=0.1   # variance of u
 r=0.2    # damping rate in OE
@@ -125,7 +133,7 @@ k  = wavenumbers(x_length)
 
 ### plot the data
 variable = divisor
-plot_magnitudes = [0.7]
+plot_magnitudes = [0.7] #, 0.01]
 
 # plot nabla c against <uc> for various choices of delta
 fig = Figure(resolution = (3024, 1964),
@@ -138,10 +146,18 @@ for var in variable
     div = var
     mindx = 1
     for mag in plot_magnitudes
-        load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(κ) * "_FT.jld2"
-        @load load_name cs fs ff cf gc
+        if no_u
+            load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(round(κ, sigdigits = 3)) * "_nou_FT.jld2"
+            @load load_name cs cf
+            gc = []
+            fs = []
+            ff = []
+        else
+            load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(κ) * "_FT.jld2"
+            @load load_name cs fs ff cf gc
+        end
 
-        axtitle = axis_title(mag, div, r, varu) # need to add quantity to vary = 1
+        axtitle = axis_title(mag, div, r, varu; quantity_to_vary) # need to add quantity to vary = 1
         ax = choose_axis(fig, plot_type, nindx, axtitle, var_choice)
         xvar, yvar = load_variables(ax, var_choice, gc, ff, cf, cs, x, k)
         if length(plot_magnitudes) == 1
@@ -149,6 +165,7 @@ for var in variable
         else
             colours = specify_colours(length(plot_magnitudes))
         end
+        #print(yvar)
         lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag), color = colours[mindx])
 
             if mindx == 1
@@ -182,7 +199,7 @@ if plot_type == 1
 end
 display(fig)
 
-save(name_figure(plot_type, plot_divisor, var_choice), fig) #, pt_per_unit=2) # size = 600 x 450 pt
+save(name_figure(plot_type, var_choice, quantity_to_vary), fig) #, pt_per_unit=2) # size = 600 x 450 pt
 
 # test glenn's plots
 # 1) plot <c> and 1+Δ(x)
