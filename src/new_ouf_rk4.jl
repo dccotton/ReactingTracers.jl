@@ -30,9 +30,9 @@ end
 
 r = 0.2    # damping rate in OE
 varu = r^2  # variance of u (ensures d/dx(uc) ~ 1)
-κ =0.02    # "subgrid" kappa
-λ = 0.05    # relaxation to forcing
-dt = 1*2/(κ*1024^2)#1/5250
+κ = 0.02    # "subgrid" kappa
+λ = 0.1    # relaxation to forcing
+dt = 4*2/(κ*1024^2)#1/5250
 rfac=sqrt(2*varu*dt*r)
 
 N=10
@@ -45,16 +45,15 @@ k  = wavenumbers(x_length)
 
 adv2 = adv_closure(zeros(x_length, N))
 
+
 ox=ones(x_length,1);
-#magnitudes = [0.7, 0.5, 0.1, 0.2, 0.3, 0.4, 0.6]
-magnitudes = [0.7]
-divisor = [1] #[25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
+lambdas = [0.1, 1, 10]
+magnitudes = [0.7, 0.5, 0.1, 0.9]
+divisor = [25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
 
-mag = 0.7
-div = 1
-
-#for mag in magnitudes
-#for div in ProgressBar(divisor)
+for λ in lambdas
+for mag in magnitudes
+for div in ProgressBar(divisor)
   # initiate velocities
     u=randn(1,N)*varu #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
     ind = findall(u -> abs(u) >= 5, u)
@@ -69,31 +68,31 @@ div = 1
     # plotting parameters
 
     t=0
-    tmax=10
+    tmax=1000
     t_array = collect(t:dt:tmax);
     t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
     save_times = t_array[t_indices]
 
-    fig = Figure()
-    ax = Axis(fig[1, 1], xlabel = L"x",
-      xlabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
-      xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
-    lines!(x,mean(c,dims=2)[:], label = L"\overline{c}")
-    lines!(x,(1/N)*c*u'[:], label = L"\overline{uc}") #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
-    lines!(x,Δconc[:, 1], label = L"\Delta(x)")
-    axislegend()#position = :rt, bgcolor = (:grey90, 0.25));
-    fig
+    #fig = Figure()
+    #ax = Axis(fig[1, 1], xlabel = L"x",
+    #  xlabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
+    #  xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
+    #lines!(x,mean(c,dims=2)[:], label = L"\overline{c}")
+    #lines!(x,(1/N)*c*u'[:], label = L"\overline{uc}") #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
+    #lines!(x,Δconc[:, 1], label = L"\Delta(x)")
+    #axislegend()#position = :rt, bgcolor = (:grey90, 0.25));
+    #fig
 
     cs=zeros(x_length, tmax);
     fs=zeros(x_length, tmax);
     for t in ProgressBar(t_array)
       if minimum(abs.(save_times .- t)) == 0
         if t > 0
-          f2 = Figure()
-          ax = Axis(f2[1, 1])
-          lines!(ax, x,mean(c,dims=2)[:])
+          #f2 = Figure()
+          #ax = Axis(f2[1, 1])
+          #lines!(ax, x,mean(c,dims=2)[:])
           #lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
-          display(f2)
+          #display(f2)
           cs[:, round(Int, t)]= mean(c,dims = 2)
           fs[:, round(Int, t)]= (1/N)*c*u'
         end
@@ -117,26 +116,27 @@ div = 1
     c_squared_mean = mean(cs[:,201:end-1].^2,dims = 2); #<c>
     gc=real(ifft(im*k[:,1].*fft(c_mean)));
 
-    c_mean = mean(cs,dims = 2); #<c>
-    flux_mean =mean(fs, dims = 2); #<uc>
-    c_squared_mean = mean(cs.^2,dims = 2); #<c>
-    gc=real(ifft(im*k[:,1].*fft(c_mean)));
+    #c_mean = mean(cs,dims = 2); #<c>
+    #flux_mean =mean(fs, dims = 2); #<uc>
+    #c_squared_mean = mean(cs.^2,dims = 2); #<c>
+    #gc=real(ifft(im*k[:,1].*fft(c_mean)));
 
-    f3 = Figure()
-    ax = Axis(f3[1, 1])
-    lines!(ax, c_squared_mean[:])  
-    display(f3) 
+    #f3 = Figure()
+    #ax = Axis(f3[1, 1])
+    #lines!(ax, c_squared_mean[:])  
+    #display(f3) 
 
     
-  f3 = Figure()
-  ax = Axis(f3[1, 1])
-  lines!(ax, gc[:],flux_mean[:])
-  display(f3)
+  #f3 = Figure()
+  #ax = Axis(f3[1, 1])
+  #lines!(ax, gc[:],flux_mean[:])
+  #display(f3)
 
-  save_name = "test_mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_lambda_" * string(λ) * "_FT.jld2"
-
+  
+  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_lambda_" * string(λ) * "_FT.jld2"
   @save save_name c_mean flux_mean c_squared_mean gc
-#end
+end
 
-#end
+end
 
+end
