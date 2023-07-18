@@ -37,7 +37,7 @@ varu = r^2  # variance of u (ensures d/dx(uc) ~ 1)
 dt = 4*2/(κ*1024^2)#1/5250
 rfac=sqrt(2*varu*dt*r)
 
-N=128
+N=128*2
 av=1/N
 
 # setup grid
@@ -108,7 +108,7 @@ for div in ProgressBar(divisor)
                     cs .+= mean(c, dims=2)
                     c²s .+= mean(c .^ 2, dims=2)
                     fs .+= (1 / N) * c * u'
-                    global num_avg += 1
+                    num_avg += 1
                 end
             end
         end
@@ -153,8 +153,8 @@ for div in ProgressBar(divisor)
 
     save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits=3)) * "_lambda_" * string(λ) * "_FT.jld2"
     @save save_name c_mean flux_mean c_squared_mean gc
-# end
+end
 # 
-# end
+end
 
-# end
+end
