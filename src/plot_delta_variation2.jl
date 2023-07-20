@@ -4,7 +4,7 @@ using ReactingTracers
 using FFTW
 GLMakie.activate!(inline=false)
 
-# use if wanting to vary both quantities
+# use if only wanting to vary one quantity
 
 function name_figure(plot_type, plot_divisor, var_choice)
     if plot_type == 2
@@ -13,6 +13,11 @@ function name_figure(plot_type, plot_divisor, var_choice)
         plot_panels_name = "four_"
     else
         plot_panels_name = "single_"
+    end
+    if plot_divisor
+        var_change_name = "mag_" * string(mag) * "_"
+    else
+        var_change_name = "L_" * string(round(div*r/varu; sigdigits = 3)) * "_"    
     end
     if var_choice == 1
         method_name = "FT"
@@ -24,25 +29,30 @@ function name_figure(plot_type, plot_divisor, var_choice)
         method_name = "concentration_squared"
     end
     
-    fig_save_name = "both_" * plot_panels_name * method_name * ".png"
+    fig_save_name = var_change_name * plot_panels_name * method_name * ".png"
     return fig_save_name
 end
 
-function load_variables()
-    
+function axis_title(var_choice)
+
+end
 
 # choose what to plot
-var_choice = 4 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>
+#plot_panels = true #false #true # either plots all the data in one plot or on separate panels
+plot_divisor = true #false #true #false #true #false #true # either plot the effect of varying magnitude or varying divisor
+#plot_four = false #true # only plot four panels to stop things becoming cluttered (can't have plot_panels true and this true as well)
+var_choice = 3 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels
-quantity_to_vary = 3 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both 
+#quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing
 
 
 varu=0.1   # variance of u
 r=0.2    # damping rate in OE
+κ = 0.01
 
 # variables to choose to plot
 mag = 0.7
-div = 3
+div = 1
 
 # options to choose from
 
@@ -59,8 +69,11 @@ x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 ### plot the data
-variable = divisor
-plot_magnitudes = [0.1, 0.7]
+if plot_divisor
+    variable = divisor
+else
+    variable = magnitudes
+end
 
 # plot nabla c against <uc> for various choices of delta
 fig = Figure(resolution = (3024, 1964), xlabel = L"\nabla c",
@@ -68,71 +81,59 @@ xlabelsize = 22, ylabel = L"\overline{uc}", ylabelsize = 22, xgridstyle = :dash,
 xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
 four_panels = [1, 1, 2, 2, 1, 2, 1, 2]
 
+
 nindx = 1
 for var in variable
-    div = var
-    mindx = 1
-    for mag in plot_magnitudes
-        load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_FT.jld2"
-        @load load_name cs fs ff cf gc
-        if var_choice == 1
-            Δconc = mag*cos.(div*x)
-            ft_cf=abs.(fft(cf))[:]
-            if plot_type == 2
-                ax = Axis(fig[nindx, 1], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
-                #nindx= nindx + 1    
-                lines!(ax, k, log10.(ft_cf)[:], color = :blue, linewidth = 4, label = "c")
-                lines!(ax, k, log10.(abs.(fft(Δconc))), color = :red, linewidth = 2, label = "scaled Δ(x)")
-                print(maximum(ft_cf))
-                axislegend()
-            end
-            if plot_type == 3
-                ax = Axis(fig[four_panels[nindx], four_panels[nindx + 4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
-                nindx= nindx + 1    
-                lines!(ax, k, log10.(ft_cf)[:], color = :blue, linewidth = 4, label = "c")
-                lines!(ax, k, log10.(abs.(fft(Δconc))), color = :red, linewidth = 2, label = "scaled Δ(x)")
-                axislegend()
-            end            
-        else
-            if plot_type == 2
-                    ax = Axis(fig[nindx, 1], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r")
-                    #nindx = nindx + 1
-                elseif plot_type == 3
-                    ax = Axis(fig[four_panels[nindx], four_panels[nindx+4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
-                    #nindx= nindx + 1
-                else
-                    ax = Axis(fig[1, 1])
-            end
-            if var_choice == 2
-                xvar = gc[:]
-                yvar = ff[:]
-            elseif var_choice ==3
-                xvar = x
-                yvar = cf[:]
-            elseif var_choice ==4
-                xvar = x
-                yvar = mean(cs[:,201:end].^2,dims = 2)[:];
-            else
-                yvar = mean(cs[:,201:end].^2,dims = 2)[:]./(1 .+ cf[:]).^2
-            end
-            if mindx == 1
-                lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
-                axislegend(position = :lt)
-            elseif mindx == 2
-                ax.yticklabelcolor = :red
-                ax.yaxisposition = :right
-                lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag), color = :red)
-                if var_choice == 3
-                    lines!(ax, xvar, cos.(div*xvar)*(maximum(yvar) - minimum(yvar))/2 .+ (maximum(yvar) + minimum(yvar))/2, linestyle = :dot, color = :black, label = L"cos(kx)")
-                elseif var_choice == 4
-                    lines!(ax, xvar, (cos.(div*xvar)).^2*(maximum(yvar) - minimum(yvar))/2 .+ (maximum(yvar) + minimum(yvar))/2, linestyle = :dash, color = :black, label = L"cos^2(kx)")
-                end
-                axislegend(position = :rt)
-            end
-        end
-        mindx = mindx + 1
+    if plot_divisor
+        div = var
+    else
+        mag = var
     end
-    nindx = nindx + 1
+    #load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_FT.jld2"
+    load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(κ)*  "nou_FT.jld2"
+    @load load_name cs cf
+    #@load load_name cs fs ff cf gc
+    if var_choice == 1
+        Δconc = mag*cos.(div*x)
+        ft_cf=abs.(fft(cf))[:]
+        if plot_type == 2
+            ax = Axis(fig[nindx, 1], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+            nindx= nindx + 1    
+            lines!(ax, k, log10.(ft_cf)[:], color = :blue, linewidth = 4, label = "c")
+            lines!(ax, k, log10.(abs.(fft(Δconc))), color = :red, linewidth = 2, label = "scaled Δ(x)")
+            print(maximum(ft_cf))
+            axislegend()
+        end
+        if plot_type == 3
+            ax = Axis(fig[four_panels[nindx], four_panels[nindx + 4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+            nindx= nindx + 1    
+            lines!(ax, k, log10.(ft_cf)[:], color = :blue, linewidth = 4, label = "c")
+            lines!(ax, k, log10.(abs.(fft(Δconc))), color = :red, linewidth = 2, label = "scaled Δ(x)")
+            axislegend()
+        end            
+    else
+        if plot_type == 2
+            ax = Axis(fig[nindx, 1], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+            nindx= nindx + 1
+        elseif plot_type == 3
+            ax = Axis(fig[four_panels[nindx], four_panels[nindx+4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+            nindx= nindx + 1
+        else
+            ax = Axis(fig[1, 1])
+        end
+        if var_choice == 2
+            xvar = gc[:]
+            yvar = ff[:]
+        elseif var_choice ==3
+            xvar = x
+            yvar = cf[:]
+        else
+            xvar = x
+            yvar = mean(cs[:,201:end].^2,dims = 2)[:];
+        end
+        lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+
+    end
 end
 if plot_type == 1
     axislegend()
@@ -210,3 +211,8 @@ record(fig, movie_name, timestamps;
         framerate = framerate) do t
     time[] = t
 end
+
+div = 1
+
+load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(κ)*  "nou_FT.jld2"
+@load load_name cs cf

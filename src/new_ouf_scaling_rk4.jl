@@ -42,9 +42,11 @@ k  = wavenumbers(x_length)
 adv2 = adv_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
-velocities = [1, 10, 100, 0.1, 1] #, 1, 10]
+velocities = [1] #, 10, 100, 0.1, 1] #, 1, 10]
 magnitudes = [0.9, 0.7, 0.5, 0.1]
 lambdas = [0.01, 0.1, 1, 10, 100]
+lambdas = [0.7, 0.8, 0.9, 1.1, 1.2, 1.3]
+lambdas = [0.2, 0.3, 0.4, 0.5, 0.6]
 U_force = 1
 
 for U_force in velocities

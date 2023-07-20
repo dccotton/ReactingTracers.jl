@@ -68,8 +68,8 @@ end
 
 ox=ones(x_length,1);
 #magnitudes = [0.7, 0.5, 0.1, 0.2, 0.3, 0.4, 0.6]
-magnitudes = [0.01]
-divisor = [25] #[25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
+magnitudes = [0.1]
+divisor = [1] #[25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
 for mag in magnitudes
 for div in ProgressBar(divisor)
   # initiate velocities
@@ -146,7 +146,7 @@ for div in ProgressBar(divisor)
   #title(num2str(t));
   display(f3)
 
-  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_0.02_FT.jld2"
+  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(kappa) * "_FT.jld2"
 
   @save save_name cs fs ff cf gc
 end

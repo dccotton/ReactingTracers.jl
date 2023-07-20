@@ -1,14 +1,16 @@
 using GLMakie
 using JLD2
+using FileIO
 using ReactingTracers
 using FFTW
 using PerceptualColourMaps
 using DataFrames, GLM
+using ProgressBars
 GLMakie.activate!(inline=false)
 
 # use if wanting to vary both quantities
 
-function name_figure(plot_type, var_choice, quantity_to_vary)
+function name_figure(plot_type, var_choice, quantity_to_vary, line_variable_num, line_variable, fix_to_one_wavelength, mag, div, λ)
     if plot_type == 2
         plot_panels_name = "panels_"
     elseif plot_type == 3
@@ -17,23 +19,62 @@ function name_figure(plot_type, var_choice, quantity_to_vary)
         plot_panels_name = "single_"
     end
     if var_choice == 1
-        method_name = "FT"
+        method_name = "FT_"
     elseif var_choice == 2
-        method_name = "flux"
+        method_name = "flux_"
     elseif var_choice == 3
-        method_name = "concentration"
+        method_name = "concentration_"
+    elseif var_choice == 4
+        method_name = "concentration_squared_"
+    elseif var_choice == 5
+        method_name = "relavitve_concentration_squared_"
     else
-        method_name = "concentration_squared"
+        method_name = "flux_gradient_"
     end
+
     if quantity_to_vary == 1
-        var = "_mag"
+        xvar = "panel_mag_"
     elseif quantity_to_vary == 2
-        var = "_k"
+        xvar = "panel_k_"
     else
-        var = "_both"
+        xvar = "panel_λ_"
     end
     
-    fig_save_name = "both_" * plot_panels_name * method_name * ".png"
+    if line_variable_num == 1
+        if length(line_variable) == 1
+            lvar = "line_mag_" * string(line_variable[1]) * "_"
+        else
+            lvar = "line_mag_"
+        end
+    elseif line_variable_num == 2
+        if length(line_variable) == 1
+            lvar = "line_k_" * string(line_variable[1]) * "_"
+        else
+            lvar = "line_k_"   
+        end    
+    else
+        if length(line_variable) == 1
+            lvar = "line_λ_" * string(line_variable[1]) * "_"
+        else
+            lvar = "line_λ_"   
+        end   
+    end
+
+    if quantity_to_vary!= 1 && line_variable_num != 1
+        fvar = "mag_" * string(mag)
+    elseif quantity_to_vary!= 2 && line_variable_num != 2
+        fvar = "k_" * string(div)
+    else
+        fvar = "lambda_" * string(λ)
+    end
+
+    if fix_to_one_wavelength
+        wave = "_one_wavelength"
+    else
+        wave = ""
+    end
+
+    fig_save_name = method_name * plot_panels_name * xvar * lvar * fvar * wave * ".png"
     return fig_save_name
 end
 
@@ -53,9 +94,38 @@ function load_variables(ax, var_choice, gc, ff, cf, cs, x, k)
     elseif var_choice == 4
         xvar = x
         yvar = mean(cs[:,201:end].^2,dims = 2)[:];
-    else
+    elseif var_choice == 4
         xvar = x
         yvar = mean(cs[:,201:end].^2,dims = 2)[:]./(1 .+ cf[:]).^2
+    else
+        xvar = x
+        yvar = real(ifft(im*k[:,1].*fft(ff)))[:];
+    end
+    return xvar, yvar
+end
+
+function load_variables_u(ax, var_choice, c_mean, flux_mean, c_squared_mean, gc, x, k)
+    if var_choice == 1
+        ft_cf=abs.(fft(c_mean))[:]
+        xvar = k
+        yvar = log10.(ft_cf)[:]
+        ylims!(minimum(-16), maximum(5))
+        xlims!(minimum(k), maximum(k))
+    elseif var_choice == 2
+        xvar = gc[:]
+        yvar = flux_mean[:]
+    elseif var_choice == 3
+        xvar = x
+        yvar = c_mean[:]
+    elseif var_choice == 4
+        xvar = x
+        yvar = c_squared_mean[:];
+    elseif var_choice == 4
+        xvar = x
+        yvar = (c_squared_mean.^2 .- (c_mean[:]).^2)/c_mean.^2
+    else
+        xvar = x
+        yvar = real(ifft(im*k[:,1].*fft(flux_mean)))[:];
     end
     return xvar, yvar
 end
@@ -76,6 +146,9 @@ function choose_axis(fig, plot_type, nindx, axtitle, var_choice)
     elseif var_choice == 5
         xlabel = "x"
         ylabel = L"⟨c'^2⟩/⟨c⟩^2"
+    elseif var_choice == 6
+        xlabel = "x"
+        ylabel = "∂⟨uc⟩/∂x"
     end
     
     if plot_type == 2
@@ -89,11 +162,13 @@ function choose_axis(fig, plot_type, nindx, axtitle, var_choice)
     return ax
 end
 
-function axis_title(mag, div, r, varu; quantity_to_vary = 3)
+function axis_title(mag, div, λ, r, varu; quantity_to_vary = 3)
     if quantity_to_vary == 1
         axtitle = "|Δ| = " * string(mag)
+    elseif quantity_to_vary == 2
+        axtitle = "L = " * string(round(2*pi/div*r/sqrt(varu); sigdigits =  3)) * "⟨v⟩/r"
     else
-        axtitle = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r"
+        axtitle = "λ = " * string(λ)
     end
     return axtitle
 end
@@ -104,25 +179,35 @@ function specify_colours(num_colours)
 end
 
 # choose what to plot
-var_choice = 2 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and and λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
+var_choice = 6 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and and λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels 
-quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both mag and wavelength, 4: vary lambda
+#quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both mag and wavelength, 4: vary lambda
+panel_variable_num = 3 # choose what each panel will vary with, 1: magnitude, 2: k, 3: lambda
+line_variable_num = 2 # choose what each line in each panel will be, 1: magnitude, 2: k, 3: lambda 
 no_u = false #true #false # either plot u = 0 or u non 0
+fix_to_one_wavelength = false # true # plot all over only one wavelength
 
 r = 0.2    # damping rate in OE
 varu = r^2 #0 #0.1   # variance of u
 
 # variables to choose to plot
-mag = 0.01
-div = 1
-κ = 0.5
-λ = 0.05 #0.1 #0.05
+mag = 0.7
+div = 3
+κ = 0.01
+λ = 1 #0.1 #0.05
 
 # options to choose from
 
 if varu == r^2
     magnitudes = [0.1, 0.5, 0.7, 0.9]
     divisor = [1, 3, 6, 13, 25]
+    lambdas = [0.5, 1, 1.5] #[0.01, 0.1, 1, 5] #[0.01, 0.1, 0.5, 1, 1.5, 5, 10]
+
+    # subgroup for each line plot
+    line_magnitudes = [0.7]
+    line_divisor = [3]
+    line_lambdas = [1]
+
 else
     if plot_type == 3
         magnitudes = [0.025, 0.1, 0.5, 0.7]
@@ -138,8 +223,26 @@ x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 ### plot the data
-variable = divisor
-plot_magnitudes = [0.7, ] #, 0.01]
+if panel_variable_num == 1
+    panel_variable = magnitudes
+elseif panel_variable_num == 2
+    panel_variable = divisor
+else
+    panel_variable = lambdas
+end
+
+if line_variable_num == 1
+    line_variable = line_magnitudes
+elseif line_variable_num == 2
+    line_variable = line_divisor
+else
+    line_variable = line_lambas
+end
+
+# sizes
+legendsize = 30;
+axlabelsize = 30;
+axtitlesize = 40;
 
 # plot nabla c against <uc> for various choices of delta
 fig = Figure(resolution = (3024, 1964),
@@ -148,11 +251,32 @@ xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
 four_panels = [1, 1, 2, 2, 1, 2, 1, 2]
 
 nindx = 1
-for var in variable
-    div = var
+for pvar in ProgressBar(panel_variable)
+
+    # decide what variable we are obtaining
+    if panel_variable_num == 1
+        mag = pvar
+    elseif panel_variable_num == 2
+        div = pvar
+    else
+        λ = pvar
+    end
     mindx = 1
-    for mag in plot_magnitudes
-        if no_u
+    for lvar in line_variable
+        if line_variable_num == 1
+            mag = lvar
+        elseif line_variable_num == 2
+            div = lvar
+        else
+            λ = lvar
+        end
+        if varu == r^2
+            data_folder = "data/u_rat_1"
+            data_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_lambda_" * string(λ) * "_FT.jld2"
+            # Concatenate the folder and file name to get the full path
+            load_name = joinpath(data_folder, data_name)
+            @load load_name c_mean flux_mean c_squared_mean gc
+        elseif no_u
             if λ == 0.1 || λ == 0.05
                 load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ) * "_lambda_" * string(λ) * "_nou_FT.jld2"
             else
@@ -169,17 +293,33 @@ for var in variable
             @load load_name cs fs ff cf gc
         end
 
-        axtitle = axis_title(mag, div, r, varu; quantity_to_vary) # need to add quantity to vary = 1
+        axtitle = axis_title(mag, div, λ, r, varu; quantity_to_vary = panel_variable_num)
         ax = choose_axis(fig, plot_type, nindx, axtitle, var_choice)
-        xvar, yvar = load_variables(ax, var_choice, gc, ff, cf, cs, x, k)
-        if length(plot_magnitudes) == 1
+        ax.xlabelsize = axlabelsize
+        ax.ylabelsize = axlabelsize
+        ax.titlesize = axtitlesize
+
+        # obtain the variables for plotting
+        if varu == r^2
+            xvar, yvar = load_variables_u(ax, var_choice, c_mean, flux_mean, c_squared_mean, gc, x, k)
+        else
+            xvar, yvar = load_variables(ax, var_choice, gc, ff, cf, cs, x, k)
+        end
+        if length(line_variable) == 1
             colours = specify_colours(2)
         else
-            colours = specify_colours(length(plot_magnitudes))
+            colours = specify_colours(length(line_variable))
         end
-        print(yvar)
-        lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag), color = colours[mindx])
-
+        if fix_to_one_wavelength
+            xlims!(ax, -pi/div, pi/div)
+        end
+        lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/sqrt(varu); sigdigits =  3)) * "⟨v⟩/r, |Δ| = " * string(mag) * ", λ = " * string(round(λ, sigdigits = 1)), color = colours[mindx])
+        if var_choice ==6
+            if varu == r^2
+                lines!(ax, xvar, (λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(div*x))))[:], label = "λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))", linestyle = :dash, color = colours[mindx])
+                lines!(ax, xvar, (λ*c_mean .- λ*c_squared_mean./(1 .+ mag*cos.(div*x)))[:], label = "λ(⟨c⟩-(⟨c⟩^2 + c'^2)/(1+Δ(x)))", linestyle = :dot, color = colours[mindx])
+            end
+        end
             if mindx == 1
                 if var_choice == 1
                     Δconc = mag*cos.(div*x)
@@ -194,24 +334,24 @@ for var in variable
                 elseif var_choice == 4
                     lines!(ax, xvar, (cos.(div*xvar)).^2*(maximum(yvar) - minimum(yvar))/2 .+ (maximum(yvar) + minimum(yvar))/2, linestyle = :dash, color = :black, label = L"cos^2(kx)")
                 end
-                axislegend(position = :rt)
+                axislegend(position = :rt, labelsize = legendsize)
             elseif mindx == 2
                 ax.yticklabelcolor = colours[mindx]
                 ax.yaxisposition = :right
                 ax.xticklabelcolor = colours[mindx]
                 ax.xaxisposition = :top
-                axislegend(position = :lt)
+                axislegend(position = :lt, labelsize = legendsize)
             end
         mindx = mindx + 1
     end
     nindx = nindx + 1
 end
 if plot_type == 1
-    axislegend()
+    axislegend(labelsize = legendsize)
 end
 display(fig)
 
-save(name_figure(plot_type, var_choice, quantity_to_vary), fig) #, pt_per_unit=2) # size = 600 x 450 pt
+save(name_figure(plot_type, var_choice, panel_variable_num, line_variable_num, line_variable, fix_to_one_wavelength, mag, div, λ), fig) #, pt_per_unit=2) # size = 600 x 450 pt
 
 # test glenn's plots
 # 1) plot <c> and 1+Δ(x)
@@ -229,14 +369,17 @@ ax = Axis(fig[1, 1])
 mag = 0.7;
 div = 3;
 λ= 0.1; 
-load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "test_FT.jld2"
-@load load_name cs fs ff cf gc
-x_glenn = nodes(512, a = -pi, b = pi)
+#load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "test_FT.jld2"
+#@load load_name cs fs ff cf gc
+#x_glenn = nodes(512, a = -pi, b = pi)
 
 # glenn has used 1+b, I've used b
+save_name = "mag_0.1_k_1.0_lambda_0.1_FT.jld2"
 
-save_name = "test_mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_lambda_" * string(λ) * "_FT.jld2"
-@load save_name c_mean flux_mean c_squared_mean gc
+data_folder = "data/test_glenn"
+data_name = "test_mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_lambda_" * string(λ) * "_FT.jld2"
+load_name = joinpath(data_folder, data_name)
+@load load_name c_mean flux_mean c_squared_mean gc
 x_glenn = nodes(1024, a = -pi, b = pi)
 cf = c_mean .- 1
 ff = flux_mean
@@ -250,6 +393,7 @@ lines!(ax, x_glenn, 1 .+ cf[:], label = "⟨c⟩")
 lines!(ax, x_glenn, 1 .+ mag*cos.(div*x_glenn), label = "1+Δ(x)")
 lines!(ax, x_glenn, gc[:], label= "∇c")
 lines!(ax, x_glenn, λ*(1 .+ cf[:]).*(1 .- (1 .+ cf[:])./(1 .+mag*cos.(div*x_glenn))), label = "λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))")
+lines!(ax, x_glenn, (λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(div*x_glenn))))[:], label = "λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))")
 lines!(ax, gc[:], ff[:])
 ∇uc=real(ifft(im*k[:,1].*fft(ff)));
 lines!(ax, x_glenn, ∇uc[:], label = "∇⟨uc⟩")
@@ -315,4 +459,3 @@ record(fig, movie_name, timestamps;
         framerate = framerate) do t
     time[] = t
 end
-

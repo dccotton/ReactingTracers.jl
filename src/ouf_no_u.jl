@@ -20,9 +20,9 @@ function diff_closure(x)
 end
 
 κ= 0.05    # "subgrid" kappa
-λ=0.05    # relaxation to forcing
+λ=0.1    # relaxation to forcing
 x_length = 1024
-dt=2/(0.01*x_length^2) # need 1/dt > κ(x_length/2)^2
+dt=2/(0.001*x_length^2) # need 1/dt > κ(x_length/2)^2
 #dt = 2/(0.01*x_length^2) # if kappa = 0 can't have infinite timestep
 
 N=10
@@ -34,11 +34,11 @@ k  = wavenumbers(x_length)
 
 diff2 = diff_closure(zeros(x_length))
 
-magnitudes = [0.7, 0.1, 0.01] #, 0.1, 0.1]
+magnitudes = [0.7, 0.1, 0.01] #[0.1, 0.01] #, 0.1, 0.1]
 divisor = [1, 3, 6, 13, 25]#,1, 3 63, 125]
 mag = 0.7
 div = 1
-kappas = [0.005, 0.075]#1, 10, 0.001, 0.025, 0.05, 0.15, 0.25, 0.5]
+kappas = [0.1, 0.01, 0.001, 0.025, 0.05, 0.15, 0.25, 0.5] # 1, 10, 
 
 for κ in kappas
 for mag in magnitudes
@@ -57,7 +57,7 @@ for div in divisor #ProgressBar(divisor)
     #tpl=1 # plots every timestep  = 1
     t_array = collect(t:dt:tmax);
     t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
-    save_times = round.(Int, t_array[t_indices] .+ 1)
+    save_times = t_array[t_indices]
     #fig = Figure()
     #ax = Axis(fig[1, 1], xlabel = L"x",
     #  xlabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
@@ -93,14 +93,14 @@ for div in divisor #ProgressBar(divisor)
     end
   cf=mean(cs[:,201:end],dims = 2);
   
-  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ)* "_nou_FT.jld2"
+  save_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ) * "_lambda_" * string(λ) * "_nou_FT.jld2"
 
   @save save_name cs cf
 end
 
 end
 end
-@load("mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ)* "_nou_FT.jld2", cs, cf)
+@load("mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ) * "_lambda_" * string(λ) * "_nou_FT.jld2", cs, cf)
 
 
 # test kappa = 0 case with known solution

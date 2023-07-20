@@ -30,8 +30,8 @@ end
 
 r = 0.2    # damping rate in OE
 varu = r^2  # variance of u (ensures d/dx(uc) ~ 1)
-κ = 0.02    # "subgrid" kappa
-λ = 0.1    # relaxation to forcing
+κ = 0.01 #0.02    # "subgrid" kappa
+#λ = 0.1    # relaxation to forcing
 dt = 4*2/(κ*1024^2)#1/5250
 rfac=sqrt(2*varu*dt*r)
 
@@ -47,9 +47,12 @@ adv2 = adv_closure(zeros(x_length, N))
 
 
 ox=ones(x_length,1);
-lambdas = [0.1, 1, 10]
-magnitudes = [0.7, 0.5, 0.1, 0.9]
-divisor = [25, 13, 6, 3, 1] #[1, 3, 6, 13, 25]#, 63, 125]
+lambdas = [5.0] #, 1, 10]
+magnitudes = [0.9] #[0.7, 0.9, 0.5, 0.1]
+divisor = [1, 3, 25]#, 63, 125]
+
+#magnitudes = [0.7]
+#divisor = [3]
 
 for λ in lambdas
 for mag in magnitudes
