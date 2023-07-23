@@ -30,13 +30,15 @@ wavenumbers(N; L = 2π)
 # Return
 - `wavenumbers`: array | an array of wavevectors
 """
-function wavenumbers(N; L = 2π)
+function wavenumbers(N; L = 2π, edgecase = false)
     up = collect(0:1:N-1)
     down = collect(-N:1:-1)
     indices = up
     indices[div(N,2)+1:end] = down[div(N,2)+1:end]
     indices[1] = 0 # edge case
+    if edgecase
     indices[div(N,2)+1] = 0 # edge case
+    end
     wavenumbers = 2π / L .* indices
     return wavenumbers
 end
