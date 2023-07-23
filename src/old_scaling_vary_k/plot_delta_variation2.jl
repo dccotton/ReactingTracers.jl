@@ -4,10 +4,12 @@ using ReactingTracers
 using FFTW
 GLMakie.activate!(inline=false)
 
-function name_figure(plot_panels, plot_divisor, plot_four, var_choice)
-    if plot_panels
+# use if only wanting to vary one quantity
+
+function name_figure(plot_type, plot_divisor, var_choice)
+    if plot_type == 2
         plot_panels_name = "panels_"
-    elseif plot_four
+    elseif plot_type == 3
         plot_panels_name = "four_"
     else
         plot_panels_name = "single_"
@@ -31,32 +33,39 @@ function name_figure(plot_panels, plot_divisor, plot_four, var_choice)
     return fig_save_name
 end
 
+function axis_title(var_choice)
+
+end
+
 # choose what to plot
-plot_panels = true #false #true # either plots all the data in one plot or on separate panels
+#plot_panels = true #false #true # either plots all the data in one plot or on separate panels
 plot_divisor = true #false #true #false #true #false #true # either plot the effect of varying magnitude or varying divisor
-plot_four = false #true # only plot four panels to stop things becoming cluttered (can't have plot_panels true and this true as well)
-var_choice = 1 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>
+#plot_four = false #true # only plot four panels to stop things becoming cluttered (can't have plot_panels true and this true as well)
+var_choice = 3 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>
+plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels
+#quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing
 
 
 varu=0.1   # variance of u
 r=0.2    # damping rate in OE
+κ = 0.01
 
 # variables to choose to plot
 mag = 0.7
-div = 3
+div = 1
 
 # options to choose from
 
-if plot_four
+if plot_type == 3
     magnitudes = [0.025, 0.1, 0.5, 0.7]
     divisor = [1, 13, 25, 125]
 else
-    magnitudes = [0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    magnitudes = [0.1, 0.7] # [0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     divisor = [1, 3, 6, 13, 25] #[1, 3, 6, 13, 25, 63, 125]
 end
 
 x_length = 1024
-x = nodes(x_length)
+x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 ### plot the data
@@ -70,8 +79,8 @@ end
 fig = Figure(resolution = (3024, 1964), xlabel = L"\nabla c",
 xlabelsize = 22, ylabel = L"\overline{uc}", ylabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
 xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
-ax = Axis(fig[1, 1])
 four_panels = [1, 1, 2, 2, 1, 2, 1, 2]
+
 
 nindx = 1
 for var in variable
@@ -80,13 +89,14 @@ for var in variable
     else
         mag = var
     end
-    load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_FT.jld2"
-    @load load_name cs fs ff cf gc
+    #load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_FT.jld2"
+    load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(κ)*  "nou_FT.jld2"
+    @load load_name cs cf
+    #@load load_name cs fs ff cf gc
     if var_choice == 1
-        #Δconc = mag*sin.(2*pi/div*x)
-        Δconc = mag*sin.(div*x)
+        Δconc = mag*cos.(div*x)
         ft_cf=abs.(fft(cf))[:]
-        if plot_panels
+        if plot_type == 2
             ax = Axis(fig[nindx, 1], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
             nindx= nindx + 1    
             lines!(ax, k, log10.(ft_cf)[:], color = :blue, linewidth = 4, label = "c")
@@ -94,7 +104,7 @@ for var in variable
             print(maximum(ft_cf))
             axislegend()
         end
-        if plot_four
+        if plot_type == 3
             ax = Axis(fig[four_panels[nindx], four_panels[nindx + 4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
             nindx= nindx + 1    
             lines!(ax, k, log10.(ft_cf)[:], color = :blue, linewidth = 4, label = "c")
@@ -102,13 +112,14 @@ for var in variable
             axislegend()
         end            
     else
-        if plot_panels
+        if plot_type == 2
             ax = Axis(fig[nindx, 1], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
             nindx= nindx + 1
-        end
-        if plot_four
+        elseif plot_type == 3
             ax = Axis(fig[four_panels[nindx], four_panels[nindx+4]], title = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
             nindx= nindx + 1
+        else
+            ax = Axis(fig[1, 1])
         end
         if var_choice == 2
             xvar = gc[:]
@@ -118,17 +129,18 @@ for var in variable
             yvar = cf[:]
         else
             xvar = x
-            yvar = mean(cs[:,201:end].*2,dims = 2);
+            yvar = mean(cs[:,201:end].^2,dims = 2)[:];
         end
         lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag))
+
     end
 end
-if !plot_panels
+if plot_type == 1
     axislegend()
 end
 display(fig)
 
-save(name_figure(plot_panels, plot_divisor, plot_four, var_choice), fig) #, pt_per_unit=2) # size = 600 x 450 pt
+save(name_figure(plot_type, plot_divisor, var_choice), fig) #, pt_per_unit=2) # size = 600 x 450 pt
 
 # test glenn's plots
 # 1) plot <c> and 1+Δ(x)
@@ -187,7 +199,7 @@ time = Observable(1)
 cs_line = @lift(cs[:, $time])
 
 fig = lines(x, cs_line, color = :blue, linewidth = 4, label = "c",
-    axis = (title = @lift("Delta(x) = " *string(mag) * "sin" * "2pi x/" * string(div) * ", t = $(round($time, digits = 1))"),))
+    axis = (title = @lift("Delta(x) = " *string(mag) * "cos" * "(" * string(div) * ",x) t = $(round($time, digits = 1))"),))
     ylims!(1, -2) #(minimum(cs), maximum(cs))
 #lines!(x, Δconc/maximum(Δconc)*(maximum(cs) - minimum(cs))/2 .+ (maximum(cs) + minimum(cs))/2, color = :red, linewidth = 0.5, label = L"scaled \Delta(x)")
 axislegend()
@@ -199,3 +211,8 @@ record(fig, movie_name, timestamps;
         framerate = framerate) do t
     time[] = t
 end
+
+div = 1
+
+load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(κ)*  "nou_FT.jld2"
+@load load_name cs cf

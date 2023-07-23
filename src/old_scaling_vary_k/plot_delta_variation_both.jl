@@ -104,27 +104,33 @@ function specify_colours(num_colours)
 end
 
 # choose what to plot
-var_choice = 2 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>
-plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels
-quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both 
-no_u = false # either plot u = 0 or u non 0
+var_choice = 2 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and and λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
+plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels 
+quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both mag and wavelength, 4: vary lambda
+no_u = false #true #false # either plot u = 0 or u non 0
 
-varu=0.1   # variance of u
-r=0.2    # damping rate in OE
+r = 0.2    # damping rate in OE
+varu = r^2 #0 #0.1   # variance of u
 
 # variables to choose to plot
-mag = 0.7
-div = 3
-κ = 0.01
+mag = 0.01
+div = 1
+κ = 0.5
+λ = 0.05 #0.1 #0.05
 
 # options to choose from
 
-if plot_type == 3
-    magnitudes = [0.025, 0.1, 0.5, 0.7]
-    divisor = [1, 13, 25, 125]
+if varu == r^2
+    magnitudes = [0.1, 0.5, 0.7, 0.9]
+    divisor = [1, 3, 6, 13, 25]
 else
-    magnitudes = [0.01, 0.7] # [0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
-    divisor = [1, 3, 6, 13, 25] #[1, 3, 6, 13, 25, 63, 125]
+    if plot_type == 3
+        magnitudes = [0.025, 0.1, 0.5, 0.7]
+        divisor = [1, 13, 25, 125]
+    else
+        magnitudes = [0.01, 0.7] # [0.025, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+        divisor = [1, 3, 6, 13, 25] #[1, 3, 6, 13, 25, 63, 125]
+    end
 end
 
 x_length = 1024
@@ -133,7 +139,7 @@ k  = wavenumbers(x_length)
 
 ### plot the data
 variable = divisor
-plot_magnitudes = [0.7] #, 0.01]
+plot_magnitudes = [0.7, ] #, 0.01]
 
 # plot nabla c against <uc> for various choices of delta
 fig = Figure(resolution = (3024, 1964),
@@ -147,8 +153,14 @@ for var in variable
     mindx = 1
     for mag in plot_magnitudes
         if no_u
-            load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(round(κ, sigdigits = 3)) * "_nou_FT.jld2"
+            if λ == 0.1 || λ == 0.05
+                load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ) * "_lambda_" * string(λ) * "_nou_FT.jld2"
+            else
+                load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ) * "_nou_FT.jld2"
+            end
             @load load_name cs cf
+            #load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits =  3)) * "_kappa_" * string(round(κ, sigdigits = 3)) * "_nou_FT.jld2"
+            #@load load_name cs cf
             gc = []
             fs = []
             ff = []
@@ -165,7 +177,7 @@ for var in variable
         else
             colours = specify_colours(length(plot_magnitudes))
         end
-        #print(yvar)
+        print(yvar)
         lines!(ax, xvar, yvar, label = "L = " * string(round(2*pi/div*r/varu; sigdigits =  3)) * "⟨v⟩/r, |Δ| = " *string(mag), color = colours[mindx])
 
             if mindx == 1
@@ -216,12 +228,23 @@ ax = Axis(fig[1, 1])
 # load in the data
 mag = 0.7;
 div = 3;
-λ=0.1; 
+λ= 0.1; 
 load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "test_FT.jld2"
 @load load_name cs fs ff cf gc
 x_glenn = nodes(512, a = -pi, b = pi)
 
 # glenn has used 1+b, I've used b
+
+save_name = "test_mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_lambda_" * string(λ) * "_FT.jld2"
+@load save_name c_mean flux_mean c_squared_mean gc
+x_glenn = nodes(1024, a = -pi, b = pi)
+cf = c_mean .- 1
+ff = flux_mean
+
+fig = Figure(resolution = (3024, 1964),
+xlabelsize = 22, ylabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
+xticksize = 10, ytickalign = 1, yticksize = 10, xlabelpadding = -10, title = "")
+ax = Axis(fig[1, 1])
 
 lines!(ax, x_glenn, 1 .+ cf[:], label = "⟨c⟩")
 lines!(ax, x_glenn, 1 .+ mag*cos.(div*x_glenn), label = "1+Δ(x)")
@@ -231,10 +254,10 @@ lines!(ax, gc[:], ff[:])
 ∇uc=real(ifft(im*k[:,1].*fft(ff)));
 lines!(ax, x_glenn, ∇uc[:], label = "∇⟨uc⟩")
 axislegend()
-#save("0.5-c0-and-c.png", fig) #, pt_per_unit=2) # size = 600 x 450 pt
-#save("0.5-c-and-grad.png", fig) 
-#save("0.5-grad-flux.png", fig)
-save("0.5-rs-and-div-flux.png", fig)
+#save("t1_0.5-c0-and-c.png", fig) #, pt_per_unit=2) # size = 600 x 450 pt
+#save("t1_0.5-c-and-grad.png", fig) 
+#save("t1_0.5-grad-flux.png", fig)
+save("t1_0.5-rs-and-div-flux.png", fig)
 
 # plot the particle concentration against delta
 
@@ -242,16 +265,38 @@ x_length = 1024
 x = nodes(x_length)
 k  = wavenumbers(x_length)
 Δconc = mag*cos.(div*x)
+varu= 0 #0.1   # variance of u
+r=0.2    # damping rate in OE
+# variables to choose to plot
+mag = 0.01
+div = 1
+κ = 10
+λ = 0.05 #0.1 #0.05
 
 # load in the data
-movie_name = "mag_" * string(mag) * "_k_" * string(div) * "_FT.mp4"
-load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits = 3)) * "_FT.jld2"
-@load load_name cs fs ff cf gc
-
+movie_name = "mag_" * string(mag) * "_k_" * string(div) * "_kappa_" * string(κ) * "_lambda_" *string(λ) * "_FT.mp4"
+if varu == 0
+    if λ == 0.1 || λ  == 0.05
+        load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(round(κ, sigdigits = 3)) * "_lambda_" * string(λ) * "_nou_FT.jld2"
+    else
+        load_name = "mag_" * string(mag) * "_k_" * string(round(div, sigdigits = 3)) * "_kappa_" * string(κ) * "_nou_FT.jld2"
+    end
+    @load load_name cs cf
+else
+        load_name = "mag_" * string(mag) * "_k_" * string(round(div; sigdigits = 3)) * "_FT.jld2"
+        @load load_name cs fs ff cf gc
+end
+if cs[10, 1000] == 0
+    end_time = 999
+else
+    end_time = 1000
+end
 #isnan(cs[:, 1])
 
 #nanrows = any(isnan, cs[:, 1])
 #cs[!vec(nanrows), :]
+
+@load "test_mag_0.7_k_1.0_lambda_0.05_FT.jld2" c_mean flux_mean c_squared_mean gc
 
 time = Observable(1)
 #x = nodes(size(cs, 1))
@@ -259,19 +304,15 @@ cs_line = @lift(cs[:, $time])
 
 fig = lines(x, cs_line, color = :blue, linewidth = 4, label = "c",
     axis = (title = @lift("Delta(x) = " *string(mag) * "cos" * "(" * string(div) * ",x) t = $(round($time, digits = 1))"),))
-    ylims!(1, -2) #(minimum(cs), maximum(cs))
+    ylims!(minimum(cs[:, 1:end_time]), maximum(cs[:, 1:end_time]))
 #lines!(x, Δconc/maximum(Δconc)*(maximum(cs) - minimum(cs))/2 .+ (maximum(cs) + minimum(cs))/2, color = :red, linewidth = 0.5, label = L"scaled \Delta(x)")
 axislegend()
 
 framerate = 10
-timestamps = range(start = 1, stop = 1000, step=1)
+timestamps = range(start = 1, stop = end_time, step=1)
 
 record(fig, movie_name, timestamps;
         framerate = framerate) do t
     time[] = t
 end
 
-@load load_name cs fs ff cf gc
-ft_cf=abs.(fft(cf))[:]
-xvar = k
-yvar = log10.(ft_cf)[:]
