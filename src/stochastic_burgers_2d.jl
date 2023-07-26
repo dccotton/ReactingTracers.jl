@@ -10,7 +10,7 @@ GLMakie.activate!(inline=false)
 Random.seed!(1234)
 rng = MersenneTwister(1234);
 N = 32
-Nₑ = 10
+Nₑ = 4
 𝒩 = zeros(N, N, Nₑ)
 ϕ = randn(ComplexF64, N,N, Nₑ)
 ϕ̇ = randn(ComplexF64, N,N, Nₑ)
@@ -20,6 +20,8 @@ x₁ = reshape(x, (N, 1, 1))
 x₂ = reshape(x, (1, N, 1))
 k₁ = reshape(k, (N, 1, 1))
 k₂ = reshape(k, (1, N, 1))
+∂x = im * k₁
+∂y = im * k₂
 Δ = @.  -(k₁^2 + k₂^2)
 Δ⁻¹ = @. 1.0 / Δ 
 Δ⁻¹[1] = 0.0
@@ -29,32 +31,34 @@ k₂ = reshape(k, (1, N, 1))
 @. ϕ = sin(x₁) * cos(x₂)
 ##
 function auxiliary_fields(ϕ, x₁, x₂)
-    ϕ³ = similar(ϕ) 
+    ϕ∂ˣϕ = similar(ϕ) 
     Δϕ = similar(ϕ)
     s = similar(ϕ) # source term, zero for now
     @. s = 0.0 * sin(3*x₁) * sin(3*x₂)
-    return (; ϕ³, Δϕ, s, x₁, x₂)
+    return (; ϕ∂ˣϕ, Δϕ, s, x₁, x₂)
 end
 
-κᵩ = 0.0025 # 0.0025 for N = 32
+κᵩ = 0.1 # 0.0025 for N = 32
 A = 1.0
-operators = (; Δ, Δ⁻¹, ℱ, ℱ⁻¹)
+operators = (; Δ, Δ⁻¹, ∂x, ∂y, ℱ, ℱ⁻¹)
 auxiliary = auxiliary_fields(ϕ, x₁, x₂)
 constants = (; κᵩ, A)
 parameters = (; operators, auxiliary, constants)
 
 function rhs!(ϕ̇, ϕ, t, parameters)
-    (; Δ, Δ⁻¹,ℱ, ℱ⁻¹) = parameters.operators
-    (; ϕ³, Δϕ,  s, x₁, x₂) = parameters.auxiliary
+    (; Δ, Δ⁻¹, ∂x, ∂y, ℱ, ℱ⁻¹) = parameters.operators
+    (; ϕ∂ˣϕ, Δϕ,  s, x₁, x₂) = parameters.auxiliary
     (; κᵩ, A) = parameters.constants
     ϕ .= real.(ϕ)
     ℱ * ϕ # compute ϕ̂
     @. Δϕ = κᵩ * Δ * ϕ 
+    @. ϕ∂ˣϕ = ∂x * ϕ
     ℱ⁻¹ * Δϕ # compute Δϕ
     ℱ⁻¹ * ϕ
-    @. ϕ³ = ϕ^3
-    s .=  0.0 * mean(ϕ, dims = (1,2)) # zero for now
-    @. ϕ̇ = real( Δϕ + A * (ϕ - ϕ³) - s)
+    ℱ⁻¹ * ϕ∂ˣϕ
+    @. ϕ∂ˣϕ = ϕ * ϕ∂ˣϕ
+    # s .=  0.0 * mean(ϕ, dims = (1,2)) # zero for now
+    @. ϕ̇ = real(Δϕ - ϕ∂ˣϕ)
     return nothing
 end
 
@@ -87,26 +91,16 @@ function (runge_kutta::RungeKutta4)(rhs!, x, parameters, dt)
     end
     return nothing
 end
-
-##
-@. ϕ = sin(x₁) * cos(x₂)
-rhs!(ϕ̇, ϕ, [0.0], parameters)
-fig = Figure() 
-ax1 = Axis(fig[1,1]; title = "function")
-heatmap!(ax1, real.(ϕ)[:,:,1])
-ax2 = Axis(fig[1,2]; title = "tendency")
-heatmap!(ax2, real.(ϕ̇)[:,:,1])
-display(fig)
 ##
 randn!(rng, 𝒩);
 @. ϕ = 𝒩 
 ##
-dt = 0.1 * 32 / N 
-ϵ = 0.5
+dt = 0.05 * 32 / N 
+ϵ = 0.01
 xs = Float64[]
 xs1 = Float64[]
 ϕs = typeof(ϕ)[]
-tend = floor(Int,  10^5 / 32 * N)
+tend = floor(Int,  10^6 / 32 * N)
 for i in ProgressBar(1:tend)
     randn!(rng, 𝒩) 
     rk(rhs!, ϕ, parameters, dt)
@@ -115,7 +109,7 @@ for i in ProgressBar(1:tend)
         @info "nan detected"
         break
     end
-    if i%1==0
+    if i%100==0
         if i > tend/10
             push!(ϕs, copy(ϕ))
             push!(xs1, real.(ϕ[1]))
@@ -125,16 +119,16 @@ for i in ProgressBar(1:tend)
 end
 ##
 fig = Figure() 
+colorrange = (-1.0,1.0) .* 3.0
 ax1 = Axis(fig[1,1]; title = "ensemble member 1")
-heatmap!(ax1, real.(ϕ)[:,:,1], colorrange = (-1.0,1.0), colormap = :balance, interpolate = false)
+heatmap!(ax1, real.(ϕ)[:,:,1], colorrange = colorrange, colormap = :balance, interpolate = false)
 ax2 = Axis(fig[1,2]; title = "ensemble member 2")
-heatmap!(ax2, real.(ϕ)[:,:,2]; colormap = :balance, colorrange = (-1.0,1.0))
+heatmap!(ax2, real.(ϕ)[:,:,2]; colormap = :balance, colorrange = colorrange)
 ax21 = Axis(fig[2,1]; title = "histogram of all pixels")
 hist!(ax21, xs, bins = 100, color = :black)
 ax22 = Axis(fig[2,2]; title = "histogram of pixel 1 for ensemble member 1")
 hist!(ax22, xs1, bins = 100, color = :black)
 display(fig)
-
 ##
 fig = Figure() 
 ax1 = Axis(fig[1,1])
@@ -145,44 +139,3 @@ obs2 = sl2.value
 field = @lift(real.(ϕs[$obs])[:,:,$obs2])
 heatmap!(ax1, field, colorrange = (-1.0,1.0), colormap = :balance, interpolate = false)
 display(fig)
-##
-#=
-m, n, _ = size(ϕs[1])
-ℓ = length(ϕs)
-ϕ_save = zeros(Float64, m, n, 1, ℓ * Nₑ)
-score_save = copy(ϕ_save)
-for i in ProgressBar(1:ℓ)
-    for j in 1:Nₑ
-        ϕ_save[:,:,1, (i-1)*Nₑ + j] .= real.(ϕs[i])[:,:,j]
-        score_save[:,:,1, (i-1)*Nₑ + j] .= score(ϕs[i], parameters)[:,:,j]
-    end
-end
-=#
-# timeseries
-#=
-m, n, _ = size(ϕs[1])
-ℓ = length(ϕs)
-ϕ_save = zeros(Float64, m, n, ℓ, Nₑ)
-score_save = copy(ϕ_save)
-for i in ProgressBar(1:ℓ)
-    for j in 1:Nₑ
-        ϕ_save[:,:,i, j] .= real.(ϕs[i])[:,:,j]
-        score_save[:,:,i, j] .= score(ϕs[i], parameters)[:,:,j]
-    end
-end
-=#
-##
-# Find largest distance between two fields
-distances = Float64[]
-greedy = union(rand(1:Nₑ*ℓ, 1000))
-for i in ProgressBar(eachindex(greedy))
-    for j in 2:length(greedy)
-        push!(distances, norm(ϕ_save[:,:,1, i] - ϕ_save[:,:,1, j]))
-    end
-end
-## 
-# save data 
-hfile = h5open("allen_cahn_timeseries_data.hdf5", "w")
-hfile["data"] = Float32.(ϕ_save)
-hfile["score"] = Float32.(score_save)
-close(hfile)
