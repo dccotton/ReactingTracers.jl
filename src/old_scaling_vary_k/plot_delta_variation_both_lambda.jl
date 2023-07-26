@@ -178,8 +178,10 @@ function specify_colours(num_colours)
     return colours
 end
 
+
+
 # choose what to plot
-var_choice = 6 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and and λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
+var_choice = 1 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c'>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and and λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels 
 #quantity_to_vary = 2 # 1: vary magnitude, 2: vary wavelength of forcing, 3: vary both mag and wavelength, 4: vary lambda
 panel_variable_num = 3 # choose what each panel will vary with, 1: magnitude, 2: k, 3: lambda
@@ -243,6 +245,7 @@ end
 legendsize = 30;
 axlabelsize = 30;
 axtitlesize = 40;
+linewidth = 3;
 
 # plot nabla c against <uc> for various choices of delta
 fig = Figure(resolution = (3024, 1964),
@@ -323,7 +326,7 @@ for pvar in ProgressBar(panel_variable)
             if mindx == 1
                 if var_choice == 1
                     Δconc = mag*cos.(div*x)
-                    lines!(ax, k, log10.(abs.(fft(Δconc))), color = :black, linewidth = 2, label = "scaled Δ(x)")
+                    lines!(ax, k, log10.(abs.(fft(Δconc))), color = :black, linewidth = linewidth, label = "scaled Δ(x)", )
                 elseif var_choice == 2
                     model = lm(@formula(y ~ x), DataFrame(x=xvar, y=yvar))
                     coeffs = coef(model)  

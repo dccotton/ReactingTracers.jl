@@ -14,9 +14,9 @@ GLMakie.activate!(inline=false)
 
 # NOTE WITH u = 0, cs is <c> = 1 + c' whist with u != 0, cs = c'
 
-stat_type = 6 # 1: find range|<c'>|, 2: find K_eff, 3: find <c'^2>/<c>^2, 4: find <c>, 5: find mean(<c>) - √(1-|Δ|^2), 6: find error d<uc>/dx - λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
+stat_type = 3 # 1: find range|<c'>|, 2: find K_eff, 3: find <c'^2>/<c>^2, 4: find <c>, 5: find mean(<c>) - √(1-|Δ|^2), 6: find error d<uc>/dx - λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
 plot_type = 3 # 1: plot with mag on x, 2: plot with k_forcing on x, 3: plot with κ\λ on x
-kappa_variable = 2 # 1: plot with mag, 2: plot with k_forcing, 3: plot with both mag and k, 4: plot with κ/λ # code doesn't work with 3 yet...
+kappa_variable = 1 # 1: plot with mag, 2: plot with k_forcing, 3: plot with both mag and k, 4: plot with κ/λ # code doesn't work with 3 yet...
 
 #λ = 0.05 
 r = 0.2    # damping rate in OE
@@ -33,7 +33,7 @@ if varu == 0
     kappas = sort([1, 10, 0.1, 0.01, 0.001, 0.025, 0.05, 0.15, 0.25, 0.5])
     #sort([10, 1, 0.5, 0.25, 0.15, 0.05, 0.01, 0.075, 0.025, 0.005, 0.001])
 elseif varu == r^2
-    magnitudes = [0.1, 0.5, 0.7, 0.9]
+    magnitudes = [0.7] #[0.1, 0.5, 0.7, 0.9]
     lambdas = [0.1, 0.5, 1, 1.5, 5, 10] # [0.1, 0.5, 1, 5, 10]
     kappas = lambdas
 else
@@ -283,7 +283,7 @@ elseif plot_type == 2
 else
     if kappa_variable == 1
         for indx = 1:length(magnitudes)
-            colours = specify_colours(length(magnitudes))
+            colours = specify_colours(2) #length(magnitudes))
             scatterlines!(kappas, matrix[:, indx, k_choice_indx], label = "|Δ| = " * string(magnitudes[indx]), color = colours[indx]) 
         end      
     elseif kappa_variable ==2
