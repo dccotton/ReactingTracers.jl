@@ -2,10 +2,10 @@ using Statistics
 using FFTW, GLMakie, ProgressBars
 using ReactingTracers
 using JLD2
-
+##
 # timestep minimum
 #1/\kappa k^2
-
+##
 # function closure, a function that returns a function 
 # this is a closure because it closes over the variables x, ℱ, ℱ⁻¹
 function adv_closure(x)
@@ -19,11 +19,11 @@ function adv_closure(x)
   end
 end
 
-function rk4(h, c, u,κ, k)
-    k1 = adv2(c, u, κ, k)
-    k2 = adv2(c + h/2*k1, u, κ, k)
-    k3 = adv2(c + h/2*k2, u, κ, k)
-    k4 = adv2(c + h*k3, u, κ, k)
+function rk4(h, c, u, u_t0ph_2, u_t0ph, κ, k, U_force)
+    k1 = adv2(c, U_force*u, κ, k)
+    k2 = adv2(c + h/2*k1, U_force*u_t0ph_2, κ, k)
+    k3 = adv2(c + h/2*k2, U_force*u_t0ph_2, κ, k)
+    k4 = adv2(c + h*k3, U_force*u_t0ph, κ, k)
     dc = h/6*(k1+2*k2+2*k3+k4)
     return dc
 end
@@ -31,7 +31,7 @@ end
 κ = 0.01     # "subgrid" kappa
 dt = 4*2/(κ*1024^2)#1/5250
 
-N=10
+N=250
 av=1/N
 
 # setup grid
@@ -42,9 +42,10 @@ k  = wavenumbers(x_length)
 adv2 = adv_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
-velocities = [1, 10, 100, 0.1, 1] #, 1, 10]
-magnitudes = [0.9, 0.7, 0.5, 0.1]
-lambdas = [0.01, 0.1, 1, 10, 100]
+velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
+magnitudes = [0.5] #[0.9, 0.7, 0.5, 0.1]
+lambdas = [0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.4, 2.5]
+#lambdas = [1, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.4, 2.5, 3, 5, 6, 7, 8, 9] #[0.01, 0.1, 1, 10, 100, 0.5, 1.5, 2]
 U_force = 1
 
 for U_force in velocities
@@ -64,7 +65,7 @@ for λ in ProgressBar(lambdas)
     # plotting parameters
 
     t=0
-    tmax=1000
+    tmax= 200#1000
     t_array = collect(t:dt:tmax);
     t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
     save_times = t_array[t_indices]
@@ -93,23 +94,30 @@ for λ in ProgressBar(lambdas)
           fs[:, round(Int, t)]= (1/N)*c*u'
         end
       end
-      dc .= rk4(dt, c, U_force*u, κ, k)
+      #dc .= rk4(dt, c, U_force*u, κ, k)
+      u_t0ph_2 = u .- dt/2*u .+ sqrt(2*dt)*randn(1,N)
+      u_t0ph = u_t0ph_2 .- dt/2*u_t0ph_2 .+ sqrt(2*dt)*randn(1,N)
+      dc .= rk4(dt, c, u, u_t0ph_2, u_t0ph, κ, k, U_force)
+      #print(maximum(dc))
+      #print("u_max = ", maximum(u_t0ph_2))
       @. c = c +  dc + λ*dt*(c)*(1-c/(1 + Δconc))
+      u = u_t0ph
 
       #@. c = c +  dc*dt + λ*dt*(c)*(1-c/(1 + Δconc))
       if any(isnan, c)
+        print("nan")
         break
       end
 
-      𝒩 = randn(1,N)
-      @. u = u - dt*u+sqrt(2)*𝒩
+      #𝒩 = randn(1,N)
+      #@. u = u - dt*u+sqrt(2)*𝒩
       ind = findall(u -> abs(u) >= 5, u)
       u[ind] .= 5
     end
 
-    c_mean = mean(cs[:,201:end-1],dims = 2); #<c>
-    flux_mean =mean(fs[:,201:end-1],dims = 2); #<uc>
-    c_squared_mean = mean(cs[:,201:end-1].^2,dims = 2); #<c>
+    c_mean = mean(cs[:,101:end-1],dims = 2); #<c>
+    flux_mean =mean(fs[:,101:end-1],dims = 2); #<uc>
+    c_squared_mean = mean(cs[:,101:end-1].^2,dims = 2); #<c^2>
     gc=real(ifft(im*k[:,1].*fft(c_mean)));
 
     #c_mean = mean(cs,dims = 2); #<c>
@@ -130,7 +138,7 @@ for λ in ProgressBar(lambdas)
 
   
   save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * ".jld2"
-  @save save_name c_mean flux_mean c_squared_mean gc
+  @save save_name c_mean flux_mean c_squared_mean gc cs fs
 end
 
 end
