@@ -28,8 +28,9 @@ function rk4(h, c, u, u_t0ph_2, u_t0ph, κ, k, U_force)
     return dc
 end
 
-κ = 0.001     # "subgrid" kappa
-dt = 4*2/(8*κ*1024^2)#1/5250
+κ = 0.01     # "subgrid" kappa
+dt = 4*2/(0.125*8*κ*1024^2)#1/5250
+#dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
 
 N=250
 av=1/N
@@ -44,7 +45,7 @@ adv2 = adv_closure(zeros(x_length, N))
 ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
 magnitudes = [0.7] #[0.9, 0.7, 0.5, 0.1]
-lambdas = [1.0]
+lambdas = [1.0, 0.1, 0.01, 10.0]
 #lambdas = [1, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.1, ] #[0.01, 0.1, 1, 10, 100, 0.5, 1.5, 2]
 #lambdas = [2, 3, 5, 7, 1.7, 1.4, 1.8, 1.6, 1.9, 2.5, 3.5, 4, 8, 9]
 U_force = 1
@@ -66,7 +67,7 @@ for λ in ProgressBar(lambdas)
     # plotting parameters
 
     t=0
-    tmax= 500 #1000
+    tmax= 1000
     t_array = collect(t:dt:tmax);
     t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
     save_times = t_array[t_indices]
@@ -96,8 +97,8 @@ for λ in ProgressBar(lambdas)
         end
       end
       #dc .= rk4(dt, c, U_force*u, κ, k)
-      u_t0ph_2 = u .- dt/2*u .+ sqrt(2*dt)*randn(1,N)
-      u_t0ph = u_t0ph_2 .- dt/2*u_t0ph_2 .+ sqrt(2*dt)*randn(1,N)
+      u_t0ph_2 = u .- dt/2*u .+ sqrt(dt)*randn(1,N)
+      u_t0ph = u_t0ph_2 .- dt/2*u_t0ph_2 .+ sqrt(dt)*randn(1,N)
       dc .= rk4(dt, c, u, u_t0ph_2, u_t0ph, κ, k, U_force)
       #print(maximum(dc))
       #print("u_max = ", maximum(u_t0ph_2))
