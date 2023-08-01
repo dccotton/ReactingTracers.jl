@@ -6,6 +6,7 @@ using GLMakie
 using PerceptualColourMaps
 using ReactingTracers
 using FFTW
+using LsqFit
 GLMakie.activate!(inline=false)
 
 # find max|<c'>|
@@ -14,28 +15,83 @@ GLMakie.activate!(inline=false)
 
 # NOTE WITH u = 0, cs is <c> = 1 + c' whist with u != 0, cs = c'
 
-stat_type = 4 # 1: find range|<c>|, 2: find K_eff, 3: find ⟨<c'^2>(x)/(<c>^2(x)⟩, 4: find <c>, 5: find mean(<c>) - √(1-|Δ|^2), 6: find error d<uc>/dx - λ⟨c⟩(1-⟨c⟩/(1+Δ(x))), 7: find <c'2>/<c^2>, 8: find max(⟨c⟩) 9: find min(⟨c⟩)
-plot_type = 3 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
-line_variable = 1 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ # code doesn't work with 3 yet...
+# Stat type lists
+# 1: find range|<c>|
+#2: find K_eff
+#3: find ⟨<c'^2>(x)/(<c>^2(x)⟩
+#4: find <c>
+#5: find mean(<c>) - √(1-|Δ|^2)
+#6: find error d<uc>/dx - λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))
+#8: find max(⟨c⟩)
+#9: find min(⟨c⟩)
+#10: find x position of max(c)
+#11: find the size of the sin(kx) and cos(kx) components for ⟨c'^2⟩
+#12: find the size of the sin(kx) and cos(kx) components for ⟨c⟩
+#13: find the size of the sin(kx) and cos(kx) components for ⟨c⟩ and ⟨c'^2⟩
+#14: find the size of the sin(kx) and cos(kx) components for d⟨uc⟩/dx
+#15: scaled ⟨c̅⟩
+#16: scaled range c̅
 
-markers = ['o', 'x', '+', '*', 's', 'd'] #, "hexagon", "cross", "xcross", "utriangle", "dtriangle"];
+
+stat_type = 14 
+plot_type = 3 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
+line_variable = 2 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ, 5: plot with κ(with var u non u) # code doesn't work with 3 yet...
+
+kmax = 2 # in plotting the FT, the max number of sin and cosine fourier modes
+multiple_data = true #true
+data_line_colours = 2 # 1: colour the lines by the multiple data variable, 2: colour the lines by the line_variable
+
+if stat_type == 11 || stat_type == 12 || stat_type == 14
+    global multiple_data
+    multiple_data == true # allows multiple lines to be plotted
+    multiple_data_number = 2*kmax + 1
+    data_labels = fill("", 5)
+    for indx = 1:multiple_data_number - 1
+        if indx % 2 == 0
+            data_labels[indx] = ", sin" * string(Int(indx/2)) * "x"
+        else
+            data_labels[indx] = ", cos" * string(Int(indx/2 + 0.5)) * "x"
+        end
+        data_labels[end] = ", 0"
+    end
+end
+
+if stat_type == 13
+    global multiple_data
+    multiple_data == true # allows multiple lines to be plotted
+    multiple_data_number = 2*(2*kmax + 1)
+    data_labels = fill("", multiple_data_number)
+    for indx = 1:Int(multiple_data_number/2 - 1)
+        if indx % 2 == 0
+            data_labels[indx] = "⟨c⟩ sin" * string(Int(indx/2)) * "x, "
+            data_labels[indx + Int(multiple_data_number/2)] = "⟨c'^2⟩ sin" * string(Int(indx/2)) * "x, "
+        else
+            data_labels[indx] = "⟨c⟩ cos" * string(Int(indx/2 + 0.5)) * "x, "
+            data_labels[indx + Int(multiple_data_number/2)] = "⟨c'^2⟩ cos" * string(Int(indx/2 + 0.5)) * "x, "
+        end
+        data_labels[end] = "⟨c'^2⟩ 0, "
+        data_labels[Int(multiple_data_number/2)] = "⟨c⟩ 0, "
+    end
+end
+
+markers = ['o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd'] #, "hexagon", "cross", "xcross", "utriangle", "dtriangle"];
 
 # setup grid
 x_length = 1024
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
-magnitudes = [0.7]
+magnitudes = [0.1, 0.5, 0.7, 0.9]
 
 lambdas = sort([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.5, 3, 3.5, 4.0, 5.0, 7.0, 8.0, 9.0, 10.0, 100.0])
+lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0])
+kappas = [0.01, 0.001, 0.0001]
 
-#lambdas = sort([0.1, 1.0, 10, 0.5, 1.5, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.4, 2.5, 3, 5, 6]) #[0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 2, 2.5, 3, 10, 100])
-#lambdas = sort([1.0, 0.5, 1.5, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.4, 2.5, 3, 5, 6]) #[0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 2, 2.5, 3, 10, 100])
-velocities = [1.0] #, 10, 100]
+velocities = [1.0]#, 10, 100]
 varu = 1
 κ = 0.001
 
-mag_choice_indx = 3
+mag_choice_indx = 1
 lambda_or_kappa_choice_indx = 3
 vel_choice_indx = 1
 
@@ -51,7 +107,7 @@ function axis_labels(stat_type)
     elseif stat_type == 2
         y_label = L"\Kappa_{eff}"
     elseif stat_type == 3
-        y_label = "max⟨c'^2⟩/⟨c⟩^2"
+        y_label = "⟨⟨c'^2⟩(x)/c̅(x)^2⟩"
     elseif stat_type == 4
         y_label = "<c>"
     elseif stat_type == 5
@@ -62,6 +118,14 @@ function axis_labels(stat_type)
         y_label = "max⟨c⟩"
     elseif stat_type == 9
         y_label = "min⟨c⟩"
+    elseif stat_type == 10
+        y_label = "x pos max c"
+    elseif stat_type == 11 || stat_type == 12 || stat_type == 13 || stat_type == 14
+        y_label = "FT coeff size"
+    elseif stat_type == 15
+        y_label = "scaled ⟨c̅⟩"
+    else
+        y_label = "scaled range(c̅)"
     end
     return y_label
 end
@@ -87,6 +151,52 @@ function obtain_stat_means(stat_type, c_mean, flux_mean, c_squared_mean, gc, mag
         stat = maximum(c_mean)
     elseif stat_type == 9
         stat = minimum(c_mean)
+    elseif stat_type == 10
+        stat = x[argmax(c_mean)]
+    elseif stat_type == 11 || stat_type == 12 || stat_type == 14
+        if stat_type == 11
+            ft_cf=(fft(c_squared_mean .- c_mean.^2))[:]
+        elseif stat_type == 12
+            ft_cf=(fft(c_mean))[:]
+        else
+            ft_cf = (im*k[:,1].*fft(flux_mean))[:];
+        end
+        fourier_coeffs = zeros(2*kmax+1)
+        for indx = 1:kmax
+            if indx % 2 == 0
+                fourier_coeffs[2*indx - 1] = real(ft_cf[indx+1])*2/x_length #cosine component
+                fourier_coeffs[2*indx] = -imag(ft_cf[indx+1])*2/x_length #sin component
+            else
+                fourier_coeffs[2*indx-1] = -real(ft_cf[indx+1])*2/x_length
+                fourier_coeffs[2*indx] = imag(ft_cf[indx+1])*2/x_length
+            end   
+        end
+        fourier_coeffs[end] = real(ft_cf[1])/x_length
+        stat = fourier_coeffs
+    elseif stat_type == 13
+        ft_cf_2=(fft(c_squared_mean .- c_mean.^2))[:]
+        ft_cf=(fft(c_mean))[:]
+        fourier_coeffs = zeros(2*(2*kmax+1))
+        for indx = 1:kmax
+            if indx % 2 == 0
+                fourier_coeffs[2*indx - 1] = real(ft_cf[indx+1])*2/x_length #cosine component
+                fourier_coeffs[2*indx] = -imag(ft_cf[indx+1])*2/x_length #sin component
+                fourier_coeffs[2*indx - 1 + (2*kmax+1)] = real(ft_cf_2[indx+1])*2/x_length #cosine component
+                fourier_coeffs[2*indx+ (2*kmax+1)] = -imag(ft_cf_2[indx+1])*2/x_length #sin component
+            else
+                fourier_coeffs[2*indx-1] = -real(ft_cf[indx+1])*2/x_length
+                fourier_coeffs[2*indx] = imag(ft_cf[indx+1])*2/x_length
+                fourier_coeffs[2*indx-1 + (2*kmax+1)] = -real(ft_cf_2[indx+1])*2/x_length
+                fourier_coeffs[2*indx + (2*kmax+1)] = imag(ft_cf_2[indx+1])*2/x_length
+            end   
+        end
+        fourier_coeffs[end] = real(ft_cf_2[1])/x_length
+        fourier_coeffs[2*kmax+1] = real(ft_cf[1])/x_length
+        stat = fourier_coeffs
+    elseif stat_type ==15
+        stat = (mean(c_mean[:]) - (1-mag^2)^0.5)/(1 - (1-mag^2)^0.5)
+    elseif stat_type ==16
+        stat = (maximum(c_mean) - minimum(c_mean))/(2*mag)
     end
     return stat
 end
@@ -108,6 +218,20 @@ function axis_title(stat_type, plot_type)
         stat_type_lab = "max_c_"
     elseif stat_type == 9
         stat_type_lab = "min_c_"
+    elseif stat_type == 10
+        stat_type_lab = "max_c_pos_"
+    elseif stat_type == 11
+        stat_type_lab = "⟨c'2⟩ fourier coefficients_"
+    elseif stat_type == 12
+        stat_type_lab = "⟨c⟩ fourier coefficients_"
+    elseif stat_type == 13
+        stat_type_lab = "⟨c⟩ and ⟨c'^2˔ fourier coefficients_"
+    elseif stat_type == 14
+        stat_type_lab = "d⟨uc⟩_dx fourier coefficients_"
+    elseif stat_type == 15
+        stat_type_lab = "scaled ⟨c̅⟩_"
+    else
+        stat_type_lab = "scaled range c̅"
     end
     if line_variable !=3
         if plot_type !=1 && line_variable !=1
@@ -144,7 +268,11 @@ end
 n_indx = 1
 
 # load in the data
-matrix = zeros(length(lambdas), length(magnitudes), length(velocities));
+if multiple_data == false
+    matrix = zeros(length(lambdas), length(magnitudes), length(velocities));
+else
+    matrix = zeros(length(lambdas), length(magnitudes), length(velocities), multiple_data_number);
+end
 for l_indx in 1:length(lambdas)
     for m_indx = 1:length(magnitudes)
         mag = magnitudes[m_indx]
@@ -162,8 +290,8 @@ for l_indx in 1:length(lambdas)
                     var = 0
                 end                    
             else
-                data_folder = "data/new_scaling/"
-                if κ == 0.001
+                data_folder = "data/gpu/kappa_0.001/t_1000_3000/"
+                if κ == 0.0001
                     data_name = data_name = "mag_" * string(mag) * "_U_" * string(velocities[n_indx]) * "_lambda_" * string(lambdas[l_indx]) * "_k_0.001.jld2"
                 else
                     data_name = data_name = "mag_" * string(mag) * "_U_" * string(velocities[n_indx]) * "_lambda_" * string(lambdas[l_indx]) * ".jld2"
@@ -173,7 +301,12 @@ for l_indx in 1:length(lambdas)
                 try
                     @load load_name c_mean flux_mean c_squared_mean gc
                     var = obtain_stat_means(stat_type, c_mean, flux_mean, c_squared_mean, gc, mag, lambdas[l_indx], k)
-                    matrix[l_indx, m_indx, n_indx] = var
+                    if multiple_data == true
+                        matrix[l_indx, m_indx, n_indx, :] = var
+                    else
+                        matrix[l_indx, m_indx, n_indx] = var
+                    end
+
                 catch systemerror
                     print("no file named " * data_name)
                     var = 0
@@ -188,7 +321,7 @@ matrix = replace(matrix) do x
     x == 0 ? NaN : x
 end
 
-line_options = (; linewidth = 10, markersize = 30)
+line_options = (; linewidth = 10, markersize = 100)
 
 fig = Figure(resolution = (3024, 1964),
 xlabelsize = 22, ylabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
@@ -208,65 +341,205 @@ else
 end
 
 # sizes
-legendsize = 30;
-axlabelsize = 30;
-axtitlesize = 40;
+legendsize = 60;
+axlabelsize = 40;
+axtitlesize = 50;
+axticksize = 40;
 
 # plot the data
 if plot_type == 1 # Δ on x
     if line_variable == 2
-        for indx = 1:length(velocities)
-            colours = specify_colours(length(velocities))
-            scatterlines!(magnitudes, matrix[lambda_or_kappa_choice_indx, :, indx], label = "U = " * string(velocities[indx]), color = colours[indx]; line_options...)
+        if !multiple_data
+            for indx = 1:length(velocities)
+                colours = specify_colours(length(velocities))
+                scatterlines!(magnitudes, matrix[lambda_or_kappa_choice_indx, :, indx], label = "U = " * string(velocities[indx]), color = colours[indx]; line_options...)
+            end
+        else
+            if data_line_colours == 2
+                if length(velocities) == 1
+                    colours = specify_colours(length(velocities)+1)
+                else                    
+                    colours = specify_colours(length(velocities))
+                end
+                for indx = 1:length(velocities)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(magnitudes, matrix[lambda_or_kappa_choice_indx, :, indx, mul_indx], label = "U = " * string(velocities[indx]) * data_labels[mul_indx], color = colours[indx], marker = markers[mul_indx]; line_options...)
+                    end
+                end   
+            else
+                colours = specify_colours(multiple_data_number)
+                for indx = 1:length(velocities)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(magnitudes, matrix[lambda_or_kappa_choice_indx, :, indx, mul_indx], label = "U = " * string(velocities[indx]) * data_labels[mul_indx], color = colours[mul_indx], marker = markers[indx]; line_options...)
+                    end
+                end 
+            end
         end
     elseif line_variable == 4
-        for indx = 1:length(lambdas)
-            colours = specify_colours(length(lambdas))
-            if varu == 0
-                scatterlines!(magnitudes, matrix[indx, :, vel_choice_indx], label = "κ = " * string(lambdas[indx]), color = colours[indx]; line_options...)
-            else
-                scatterlines!(magnitudes, matrix[indx, :, vel_choice_indx], label = "λ = " * string(lambdas[indx]), color = colours[indx]; line_options...)
+        if varu == 0
+            lab_start = "κ = "
+        else
+            lab_start = "λ = "
+        end
+        if !multiple_data
+            for indx = 1:length(lambdas)
+                colours = specify_colours(length(lambdas))
+                scatterlines!(magnitudes, matrix[indx, :, vel_choice_indx], label = lab_start * string(lambdas[indx]), color = colours[indx]; line_options...)
             end
-        end        
+        else            
+            if data_line_colours == 2
+                if length(lambdas) == 1
+                    colours = specify_colours(length(lambdas)+1)
+                else                    
+                    colours = specify_colours(length(lambdas))
+                end
+                for indx = 1:length(lambdas)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(magnitudes, matrix[indx, :, vel_choice_indx, mul_indx], label = lab_start * string(lambdas[indx]) * data_labels[mul_indx], color = colours[indx], marker = markers[mul_indx]; line_options...)
+                    end
+                end   
+            else
+                colours = specify_colours(multiple_data_number)
+                for indx = 1:length(lambdas)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(magnitudes, matrix[indx, :, vel_choice_indx, mul_indx], label = lab_start * string(lambdas[indx])  * data_labels[mul_indx], color = colours[mul_indx], marker = markers[indx]; line_options...)
+                    end
+                end 
+            end
+
+
+        end    
     ax.xlabel = "|Δ|"
     end
 elseif plot_type == 2 # U on x
     if line_variable == 1
-        for indx = 1:length(magnitudes)
-            colours = specify_colours(length(magnitudes))
-            scatterlines!(velocities, matrix[lambda_or_kappa_choice_indx, indx, :], label = "|Δ| = " * string(magnitudes[indx]), color = colours[indx]; line_options...)
-        end
-    elseif kappa_variable == 4
-        for indx = 1:length(lambdas)
-            colours = specify_colours(length(lambdas))
-            if varu == 0
-                scatterlines!(velocities, matrix[indx, mag_choice_indx, :], label = "κ = " * string(lambdas[indx]), color = colours[indx]; line_options...)
-            else
-                scatterlines!(velocities, matrix[indx, mag_choice_indx, :], label = "λ = " * string(lambdas[indx]), color = colours[indx]; line_options...)
+        if !multiple_data
+            for indx = 1:length(magnitudes)
+                colours = specify_colours(length(magnitudes))
+                scatterlines!(velocities, matrix[lambda_or_kappa_choice_indx, indx, :], label = "|Δ| = " * string(magnitudes[indx]), color = colours[indx]; line_options...)
             end
+        else
+            if data_line_colours == 2
+                if length(magnitudes) == 1
+                    colours = specify_colours(length(magnitudes)+1)
+                else                    
+                    colours = specify_colours(length(magnitudes))
+                end
+                for indx = 1:length(magnitudes)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(velocities, matrix[lambda_or_kappa_choice_indx, indx, :, mul_indx], label = "|Δ| = " * string(magnitudes[indx]) * data_labels[mul_indx], color = colours[indx], marker = markers[mul_indx]; line_options...)
+                    end
+                end   
+            else
+                colours = specify_colours(multiple_data_number)
+                for indx = 1:length(velocities)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(velocities, matrix[lambda_or_kappa_choice_indx, indx, :, mul_indx], label = "|Δ| = " * string(magnitudes[indx]) * data_labels[mul_indx], color = colours[mul_indx], marker = markers[indx]; line_options...)
+                    end
+                end 
+            end 
+        end
+
+    elseif line_variable == 4
+        if varu == 0
+            lab_start = "κ = "
+        else
+            lab_start = "λ = "
+        end
+        if !multiple_data
+            for indx = 1:length(lambdas)
+                colours = specify_colours(length(lambdas))
+                scatterlines!(velocities, matrix[indx, mag_choice_indx, :], label = lab_start * string(lambdas[indx]), color = colours[indx]; line_options...)
+            end
+        else
+            if data_line_colours == 2
+                if length(magnitudes) == 1
+                    colours = specify_colours(length(magnitudes)+1)
+                else                    
+                    colours = specify_colours(length(magnitudes))
+                end
+                for indx = 1:length(magnitudes)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(velocities, matrix[indx, mag_choice_indx, :, mul_indx], label = lab_start * string(lambdas[indx]) * data_labels[mul_indx], color = colours[indx], marker = markers[mul_indx]; line_options...)
+                    end
+                end   
+            else
+                colours = specify_colours(multiple_data_number)
+                for indx = 1:length(velocities)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(velocities, matrix[indx, mag_choice_indx, :, mul_indx], label = lab_start * string(lambdas[indx]) * data_labels[mul_indx], color = colours[mul_indx], marker = markers[indx]; line_options...)
+                    end
+                end 
+            end             
         end    
     end
     ax.xlabel = "U"
 else # λ or κ on x
-    if line_variable == 1
-        for indx = 1:length(magnitudes)
-            if length(magnitudes) == 1
-                colours = specify_colours(2)
+    if line_variable == 1 # Δ for each line
+        if !multiple_data        
+            for indx = 1:length(magnitudes)
+                if length(magnitudes) == 1
+                    colours = specify_colours(2)
+                else
+                    colours = specify_colours(length(magnitudes))
+                end
+                scatterlines!(lambdas, matrix[:, indx, vel_choice_indx], label = "|Δ| = " * string(magnitudes[indx]), color = colours[indx]; line_options...) 
+            end   
+        else
+            if data_line_colours == 2
+                if length(magnitudes) == 1
+                    colours = specify_colours(length(magnitudes)+1)
+                else                    
+                    colours = specify_colours(length(magnitudes))
+                end
+                for indx = 1:length(magnitudes)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(lambdas, matrix[:, indx, vel_choice_indx, mul_indx], label = "|Δ| = " * string(magnitudes[indx]) * data_labels[mul_indx], color = colours[indx], marker = markers[mul_indx]; line_options...)
+                    end
+                end   
             else
-                colours = specify_colours(length(magnitudes))
+                colours = specify_colours(multiple_data_number)
+                for indx = 1:length(magnitudes)
+                    for mul_indx = 1:multiple_data_number
+                        print("indx", indx, "mul_indx", mul_indx)
+                       scatterlines!(lambdas, matrix[:, indx, vel_choice_indx, mul_indx], label = "|Δ| = " * string(magnitudes[indx]) * data_labels[mul_indx], color = colours[mul_indx], marker = markers[indx]; line_options...)
+                    end
+                end 
+            end             
+        end
+
+    elseif line_variable ==2 # U for each line
+        if !multiple_data
+            for indx = 1:length(velocities)
+                colours = specify_colours(length(velocities))
+                scatterlines!(lambdas, matrix[:, mag_choice_indx, indx], label = "U = " * string(velocities[indx]), color = colours[indx]; line_options...)
             end
-            scatterlines!(lambdas, matrix[:, indx, vel_choice_indx], label = "|Δ| = " * string(magnitudes[indx]), color = colours[indx]; line_options...) 
-        end      
-    elseif line_variable ==2
-        for indx = 1:length(velocities)
-            colours = specify_colours(length(velocities))
-            scatterlines!(kappas, matrix[:, mag_choice_indx, indx], label = "U = " * string(velocities[indx]), color = colours[indx]; line_options...)
+        else
+            if data_line_colours == 2
+                if length(velocities) == 1
+                    colours = specify_colours(length(velocities)+1)
+                else                    
+                    colours = specify_colours(length(velocities))
+                end
+                for indx = 1:length(velocities)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(lambdas, matrix[:, mag_choice_indx, indx, mul_indx], label = "U = " * string(velocities[indx]) * data_labels[mul_indx], color = colours[indx], marker = markers[mul_indx]; line_options...)
+                    end
+                end   
+            else
+                colours = specify_colours(multiple_data_number)
+                for indx = 1:length(velocities)
+                    for mul_indx = 1:multiple_data_number
+                       scatterlines!(lambdas, matrix[:, mag_choice_indx, indx, mul_indx], label = "U = " * string(velocities[indx]) * data_labels[mul_indx], color = colours[mul_indx], marker = markers[indx]; line_options...)
+                    end
+                end 
+            end            
         end
     else
         for mag_indx = 1:length(magnitudes)
             colours = specify_colours(length(velocities))
             for k_indx = 1:length(velocities)
-                scatterlines!(lambdas, matrix[:, mag_indx, k_indx], label = "U = " * string(velocities[k_indx]) *  ", |Δ| = " * string(magnitudes[mag_indx]), color = colours[k_indx], marker = markers[mag_indx]; line_options...)
+                scatterlines!(lambdas, matrix[:, mag_choice_indx, k_indx], label = "U = " * string(velocities[k_indx]) *  ", |Δ| = " * string(magnitudes[mag_indx]), color = colours[k_indx], marker = markers[mag_indx]; line_options...)
             end
         end
     end
@@ -292,16 +565,24 @@ if line_variable !=3
 end
 
 if stat_type == 4 && plot_type != 1
-    mag = magnitudes[1]
+    mag = magnitudes[mag_choice_indx]
     hlines!(ax, 1, color = :blue, label = L"c_0 = 1"; line_options...)
     hlines!(ax, sqrt(1-mag^2), color = :red, label = L"c_0 = \sqrt{1-|Δ|^2}" ; line_options...)
+    hlines!(ax, 1/2 + sqrt(1-mag^2)/2, color = :green, label = L"c_0 = \frac{1+\sqrt{1-|Δ|^2}}{2}" ; line_options...)
+elseif stat_type == 1 && plot_type != 1
+    mag = magnitudes[mag_choice_indx]
+    hlines!(ax, 0, color = :blue, label = L"range = 0"; line_options...)
+    hlines!(ax, 2*mag, color = :red, label = L"range = 2|Δ|" ; line_options...)
+    hlines!(ax, mag, color = :green, label = L"range = |Δ|" ; line_options...)
 end
 
 ax.titlesize = axtitlesize
 ax.ylabel = axis_labels(stat_type)
 ax.xlabelsize = axlabelsize
 ax.ylabelsize = axlabelsize
+ax.xticklabelsize = axticksize
+ax.yticklabelsize = axticksize
 
-axislegend(labelsize = legendsize)
+legend = axislegend(labelsize = legendsize, nbanks = 1)
 
 save(axis_title(stat_type, plot_type), fig)
