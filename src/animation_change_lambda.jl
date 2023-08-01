@@ -148,23 +148,6 @@ function specify_colours(num_colours)
     return colours
 end
 
-# attempt tanh fit
-
-# Define the tanh function
-function tanh_function_fixed(x, a)
-    return 0.5 .* tanh.(a .* x) .+ 0.5
-end
-
-function fit_tanh(xdata, ydata)
-    p0 = [1.0] # initial guess
-    # Fitting the data to the tanh function
-    fit_result = curve_fit(tanh_function_fixed, xdata, ydata, p0)
-    
-    # Extracting the fitted parameters    
-    result = fit_result.param[1]
-    return result
-end
-
 
 # var choice options
 #1: FFT(<c)
@@ -175,7 +158,7 @@ end
 #6: d<uc>/dx
 #7: plot the error in mean estimate as a function of x ((⟨c⟩ - c_0)^2/c_0^2)
 #8: plot ⟨c^2⟩
-#9: plot the magnitude of the terms in the equation for d<c'2>/dt
+#9: plot the magnitude of the terms in the equation for d<c'2>/dt (this needs to be fixed)
 #10: FFT(⟨c'^2⟩)
 
 # choose what to plot
@@ -195,7 +178,7 @@ u_force = 1.0
 κ = 0.001
 λ = 1
 
-data_folder = "data/gpu/kappa_0.001/t_1000_5000/"
+data_folder = "data/gpu/kappa_0.001/code_fixes/"
 
 # options to choose from
 
@@ -205,9 +188,10 @@ if varu != 0
     lambdas = [0.5, 1, 1.5] #
     lambdas = [0.1, 1.0, 10.0, 100.0]
     lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+    lambdas = sort([0.01, 0.1, 0.5, 1.0, 1.2, 1.4, 1.5, 10.0, 100.0])
 
     # subgroup for each line plot
-    line_magnitudes = [0.7] #[0.1, 0.5, 0.7, 0.9]
+    line_magnitudes = [0.1, 0.5, 0.7, 0.9]
     line_velocity = [1]
     line_lambdas = [3, 5, 6, 10.0]
     line_kappas = [0.01, 0.001]
@@ -252,18 +236,6 @@ fluctuation_labels =fill("", length(panel_variable), length(line_variable))
 fig = Figure(resolution = (3024, 1964),)
 four_panels = [1, 1, 2, 2, 1, 2, 1, 2]
 
-# if doing var choice is 3 or 6 will attempt a tanh fit
-yvals = zeros(length(lambdas))
-for l_indx in 1:length(lambdas)
-    data_name = data_name = "mag_" * string(mag) * "_U_" * string(1.0) * "_lambda_" * string(lambdas[l_indx]) * ".jld2"
-
-    # Concatenate the folder and file name to get the full path
-    load_name = joinpath(data_folder, data_name)
-    @load load_name c_mean flux_mean c_squared_mean gc
-    stat[l_indx] = (mean(c_mean[:]) - (1-mag^2)^0.5)/(1 - (1-mag^2)^0.5)
-    stat[l_indx] = (maximum(c_mean) - minimum(c_mean))/(2*mag)
-end
-
 # load in the data
 nindx = 1
 for pvar in ProgressBar(panel_variable)
@@ -292,7 +264,7 @@ for pvar in ProgressBar(panel_variable)
         
         # load in the data
         if varu != 0
-            data_folder = "data/gpu/kappa_0.001/t_1000_5000/"
+            data_folder = "data/gpu/kappa_0.001/code_fixes/"
             if κ != 0.0001
                 data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * ".jld2"
             else
@@ -300,7 +272,7 @@ for pvar in ProgressBar(panel_variable)
             end
             # Concatenate the folder and file name to get the full path
             load_name = joinpath(data_folder, data_name)
-            #try
+            try
                 @load load_name c_mean flux_mean c_squared_mean gc #c_cube_mean flux_c_square_mean # cs fs
                 # obtain the variables for plotting
                 if varu != 0
@@ -318,6 +290,7 @@ for pvar in ProgressBar(panel_variable)
                             data3[:, nindx, mindx] = λ*c_mean_pred.*(1 .- c_mean_pred./(1 .+ mag*cos.(x)))[:]
                         elseif var_choice == 3
                             data2[:, nindx, mindx] = c_mean_pred
+                        end
                     elseif var_choice == 9
                         data2[:, nindx, mindx] = abs.(real(ifft(im*k[:,1].*fft(flux_c_square_mean))));
                         data3[:, nindx, mindx] = abs.(-λ*c_cube_mean./(1 .+ mag*cos.(x)));
@@ -347,9 +320,9 @@ for pvar in ProgressBar(panel_variable)
                         data2[:, nindx, mindx] = approx_func #real((ifft(ft_cf)));
                     end
                 end
-            #catch systemerror
-            #    print("no file named " * data_name)
-            #end
+            catch systemerror
+                print("no file named " * data_name)
+            end
         end
 
         mindx = mindx + 1
@@ -359,62 +332,98 @@ end
 
 # now plot the data
 panel_indx = Observable(1)
-choice_line = @lift(data[:, $panel_indx, 1])
-ymax = @lift(maximum(data[:, $panel_indx, 1]))
-if var_choice == 2 || var_choice == 6 || var_choice == 3 || var_choice == 9 || var_choice == 4
-    choice_line2 = @lift(data2[:, $panel_indx, 1])
-end
-if var_choice == 6 || var_choice == 9
-    choice_line3 = @lift(data3[:, $panel_indx, 1])
-end
 end_time = length(panel_variable)
 ylabel = choose_axis(var_choice)
 
+# colours
+if length(line_variable) == 1
+    colours = specify_colours(2)
+else
+    colours = specify_colours(length(line_variable))
+end
+
+# legend name
+if line_variable_num == 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
+    leg_start = "Δ = "
+elseif line_variable_num == 2 
+    leg_start = "U = "
+elseif line_variable_num == 3
+    leg_start = "λ = "
+else
+    leg_start = "κ = "
+end
+
+if var_choice == 3
+    leg_end = ", c̅ ≈ 1/2*[tanh(a*log10(λ)+1]*(1-√(1-|Δ|^2)) + √(1-|Δ|^2) + Δ/2*tanh(b*log10(λ))" 
+elseif var_choice == 2
+    leg_end = ", ∇c"
+elseif var_choice ==4
+    leg_end = ", fourier approx"
+elseif var_choice == 6
+    leg_end_2 = "λc̅(1-c̅/(1+Δ(x)))"
+    leg_end_3 = "λc̅_{pred}(1-c̅_{pred}/(1+Δ(x)))"
+end
+
 if var_choice == 2 || var_choice == 3
     fig = lines(
-        x, choice_line, color = :blue, linewidth = 4;
+        x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4;
         line_options...,
         axis = (
             xlabel = "x",
             ylabel = ylabel,
             title = @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"),))
-    lines!(fig.axis, x, choice_line2, color = :red, linewidth = 4, linestyle = :dash)
+    lines!(fig.axis, x,  @lift(data2[:, $panel_indx, 1]), color = colours[1], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[1]) * leg_end)
+    for indx = 2:length(line_variable)
+        lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
+        lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
+    end
     ylims!(minimum(data), maximum(data)) 
-    #axislegend()
+    axislegend()
 elseif var_choice == 6
     fig = lines(
-        x, choice_line, color = :blue, linewidth = 4;
+        x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4;
         line_options...,
         axis = (
             xlabel = "x",
             ylabel = ylabel,
             title = @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"),))
-    lines!(fig.axis, x, choice_line2, color = :red, linewidth = 4, label = L"λc̅(1-c̅/(1+Δ(x)))")
-    c̅ = 1/2*(1 .+ mag*cos.(x)) .+ sqrt(1-mag^2)/2
-    c_0 = 1 .+ mag*cos.(x)
-    #lines!(fig.axis, x, 1 ./c_0 .* (c̅ .* (c_0 .- c̅)), color = :green, linewidth = 4, label = "test")
-    #lines!(fig.axis, x, 1 ./(4*c_0) .* (mag*(mag .+ mag*cos.(x).^2 .+ 2*cos.(x))), color = :purple, linewidth = 4, label = "test")
-    #lines!(fig.axis, x, choice_line3, color = :green, linewidth = 4, label = L"-1/(1+λ)|Δ|^2sin(2x)")
-    lines!(fig.axis, x, choice_line3, color = :green, linewidth = 4, label = L"λc̅_{pred}(1-c̅_{pred}/(1+Δ(x)))")
+            lines!(fig.axis, x,  @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]))
+            lines!(fig.axis, x,  @lift(data2[:, $panel_indx, 1]), color = colours[1], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[1]) * leg_end_2)
+            lines!(fig.axis, x,  @lift(data3[:, $panel_indx, 1]), color = colours[1], linewidth = 4, linestyle = :dot, label = leg_start * string(line_variable[1]) * leg_end_3)
+
+            for indx = 2:length(line_variable)
+                lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
+                lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end_2)
+                lines!(fig.axis, x,  @lift(data3[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dot, label = leg_start * string(line_variable[indx]) * leg_end_3)
+            end
     ylims!(minimum(data), maximum(data)) 
     axislegend()
 elseif var_choice == 4
     fig = lines(
-        x, choice_line, color = :blue, linewidth = 4;
+        x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]);
         line_options...,
         axis = (
             xlabel = "x",
             ylabel = ylabel,
             title = @lift("λ = " * string((round(panel_variable[$panel_indx], digits = 2))) * string(fluctuation_labels[$panel_indx, :])),))
-    lines!(fig.axis, x, choice_line2, color = :red, linewidth = 4, linestyle = :dash)
+    lines!(fig.axis, x, @lift(data2[:, $panel_indx, 1]), color = colours[1], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[1]) * leg_end)
+    for indx = 2:length(line_variable)
+        lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
+        lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
+    end
     ylims!(minimum(data), maximum(data)) 
+    axislegend()
 elseif var_choice == 1 || var_choice == 10
-    fig = scatterlines(k, choice_line, color = :blue, linewidth = 4; line_options...,
+    fig = scatterlines(k, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]); line_options...,
     axis = (xlabel = "k", ylabel = ylabel, title = @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"),))
+    for indx = 2:length(line_variable)
+        scatterlines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
+    end
     ylims!(minimum(-10), maximum(5))
     #xlims!(minimum(k), maximum(k))
     xlims!(-30, 30)
-elseif var_choice == 9
+    axislegend()
+elseif var_choice == 9 # need to sort
     fig = lines(
         x, choice_line, color = :blue, linewidth = 4;
         line_options...,
@@ -429,21 +438,14 @@ elseif var_choice == 9
     #ylims!(0, @lift(maximum(data[:, $panel_indx, 1])))
     axislegend() 
 else
-    fig = lines(x, choice_line, color = :blue, linewidth = 4; line_options...,
+    fig = lines(x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]); line_options...,
     axis = (xlabel = "x", ylabel = ylabel, title = @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"),))
+    for indx = 2:length(line_variable)
+        lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
+    end
     ylims!(minimum(data), maximum(data))
+    axislegend()
 end
-
-#fig = Figure(resolution = (3024, 1964),)
-#ax = choose_axis(fig, var_choice)
-#ax.xlabelsize = axlabelsize
-#ax.ylabelsize = axlabelsize
-#ax.titlesize = axtitlesize
-#lines!(x, choice_line, color = :blue, linewidth = 4, label = "c"; line_options...,)
-#setfield!(ax, :title, @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"))
-#ylims!(minimum(data), maximum(data))
-
-typeof(fluctuation_labels[1,1])
 
 framerate = 10
 timestamps = range(start = 1, stop = end_time, step=1)

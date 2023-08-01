@@ -33,17 +33,18 @@ GLMakie.activate!(inline=false)
 #16: scaled range c̅
 
 
-stat_type = 14 
+stat_type = 3
 plot_type = 3 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
 line_variable = 2 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ, 5: plot with κ(with var u non u) # code doesn't work with 3 yet...
 
 kmax = 2 # in plotting the FT, the max number of sin and cosine fourier modes
-multiple_data = true #true
-data_line_colours = 2 # 1: colour the lines by the multiple data variable, 2: colour the lines by the line_variable
+multiple_data = false #true
+data_line_colours = 1 # 1: colour the lines by the multiple data variable, 2: colour the lines by the line_variable
 
 if stat_type == 11 || stat_type == 12 || stat_type == 14
+    print("here")
     global multiple_data
-    multiple_data == true # allows multiple lines to be plotted
+    multiple_data = true # allows multiple lines to be plotted
     multiple_data_number = 2*kmax + 1
     data_labels = fill("", 5)
     for indx = 1:multiple_data_number - 1
@@ -74,6 +75,13 @@ if stat_type == 13
     end
 end
 
+test = true
+a = 10
+if a == 10
+    global test
+    test = false
+end
+
 markers = ['o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd'] #, "hexagon", "cross", "xcross", "utriangle", "dtriangle"];
 
 # setup grid
@@ -91,7 +99,7 @@ velocities = [1.0]#, 10, 100]
 varu = 1
 κ = 0.001
 
-mag_choice_indx = 1
+mag_choice_indx = 3
 lambda_or_kappa_choice_indx = 3
 vel_choice_indx = 1
 
@@ -290,7 +298,7 @@ for l_indx in 1:length(lambdas)
                     var = 0
                 end                    
             else
-                data_folder = "data/gpu/kappa_0.001/t_1000_3000/"
+                data_folder = "data/gpu/kappa_0.001/code_fixes/"
                 if κ == 0.0001
                     data_name = data_name = "mag_" * string(mag) * "_U_" * string(velocities[n_indx]) * "_lambda_" * string(lambdas[l_indx]) * "_k_0.001.jld2"
                 else
@@ -308,8 +316,8 @@ for l_indx in 1:length(lambdas)
                     end
 
                 catch systemerror
+                var = 0
                     print("no file named " * data_name)
-                    var = 0
                 end              
             end
             #print("n_indx=" * string(n_indx))
@@ -321,7 +329,7 @@ matrix = replace(matrix) do x
     x == 0 ? NaN : x
 end
 
-line_options = (; linewidth = 10, markersize = 100)
+line_options = (; linewidth = 10, markersize = 30)
 
 fig = Figure(resolution = (3024, 1964),
 xlabelsize = 22, ylabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
@@ -511,7 +519,11 @@ else # λ or κ on x
     elseif line_variable ==2 # U for each line
         if !multiple_data
             for indx = 1:length(velocities)
-                colours = specify_colours(length(velocities))
+                if length(velocities) == 1
+                    colours = specify_colours(2)
+                else
+                    colours = specify_colours(length(velocities))
+                end
                 scatterlines!(lambdas, matrix[:, mag_choice_indx, indx], label = "U = " * string(velocities[indx]), color = colours[indx]; line_options...)
             end
         else
