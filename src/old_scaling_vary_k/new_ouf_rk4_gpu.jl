@@ -1,5 +1,5 @@
 using Statistics
-using FFTW, GLMakie, ProgressBars
+using FFTW, ProgressBars
 using ReactingTracers
 using JLD2
 using CUDA

@@ -10,7 +10,7 @@ GLMakie.activate!(inline=false)
 Random.seed!(1234)
 rng = MersenneTwister(1234);
 N = 32
-Nₑ = 2
+Nₑ = 1
 𝒩 = zeros(N, N, Nₑ)
 ϕ = randn(ComplexF64, N,N, Nₑ)
 ϕ̇ = randn(ComplexF64, N,N, Nₑ)
@@ -25,6 +25,7 @@ k₂ = reshape(k, (1, N, 1))
 Δ = @.  -(k₁^2 + k₂^2)
 Δ⁻¹ = @. 1.0 / Δ 
 Δ⁻¹[1] = 0.0
+filter = @. 0 * exp(- (k₁^2 + k₂^2)/( 2 * (2π)^2) ) + 1.0 # 0.01
 
 ℱ = plan_fft!(ϕ, (1,2))
 ℱ⁻¹ = plan_ifft!(ϕ, (1,2))
@@ -38,7 +39,7 @@ function auxiliary_fields(ϕ, x₁, x₂)
     return (; ϕ∂ˣϕ, Δϕ, s, x₁, x₂)
 end
 
-κᵩ = 0.1 # 0.0025 for N = 32
+κᵩ = 0.0 # 0.0025 for N = 32
 A = 1.0
 operators = (; Δ, Δ⁻¹, ∂x, ∂y, ℱ, ℱ⁻¹)
 auxiliary = auxiliary_fields(ϕ, x₁, x₂)
@@ -52,13 +53,13 @@ function rhs!(ϕ̇, ϕ, t, parameters)
     ϕ .= real.(ϕ)
     ℱ * ϕ # compute ϕ̂
     @. Δϕ = κᵩ * Δ * ϕ 
-    @. ϕ∂ˣϕ = ∂x * ϕ
+    # @. ϕ∂ˣϕ = ∂x * ϕ
     ℱ⁻¹ * Δϕ # compute Δϕ
     ℱ⁻¹ * ϕ
-    ℱ⁻¹ * ϕ∂ˣϕ
-    @. ϕ∂ˣϕ =  -ϕ + ϕ^3 + ϕ * ϕ∂ˣϕ # 10 * ϕ∂ˣϕ#
-    s .= mean(ϕ, dims = (1,2)) # zero for now
-    @. ϕ̇ = real(Δϕ - ϕ∂ˣϕ)#  - s)
+    # ℱ⁻¹ * ϕ∂ˣϕ
+    # @. ϕ∂ˣϕ =  -ϕ + ϕ^3 + ϕ * ϕ∂ˣϕ # 10 * ϕ∂ˣϕ#
+    # s .= mean(ϕ, dims = (1,2)) # zero for now
+    @. ϕ̇ = real(Δϕ - ϕ)#  - s)
     return nothing
 end
 
@@ -95,7 +96,8 @@ end
 kernel(x, y; σ = 2π/32) = exp(-norm(sin.((x - y)/2))^2 / (2σ^2))
 xy = [[x, y] for x in x₁, y in x₂][:]
 K = [kernel(xy[i], xy[j]) for i in 1:N^2, j in 1:N^2]
-Σ = cholesky(Symmetric(K + I * 1e-6)).U
+Knew = Symmetric(K + 0.1 * I)
+Σ = cholesky(Knew).U # Σ' * Σ
 ##
 randn!(rng, 𝒩);
 @. ϕ = 𝒩 
@@ -108,9 +110,11 @@ xs1 = Float64[]
 tend = floor(Int,  10^5 / 32 * N)
 for i in ProgressBar(1:tend)
     randn!(rng, 𝒩) 
-    𝒩 .= reshape(Σ' * reshape(𝒩, (N^2, Nₑ)), (N, N , Nₑ))
+    # 𝒩 .= reshape(Σ' * reshape(𝒩, (N^2, Nₑ)), (N, N , Nₑ))
+    # 𝒩 .*= filter
+    tmp = real.(ifft(𝒩, (1,2))) * sqrt(m *n)
     rk(rhs!, ϕ, parameters, dt)
-    ϕ .= rk.xⁿ⁺¹ .+ ϵ * sqrt(dt) * 𝒩
+    ϕ .= rk.xⁿ⁺¹ .+ ϵ * sqrt(dt) * tmp
     if any(isnan.(ϕ))
         @info "nan detected"
         break
@@ -146,3 +150,23 @@ field = @lift(real.(ϕs[$obs])[:,:,$obs2])
 colorrange = (-0.1,0.1) .* 10
 heatmap!(ax1, field, colorrange = colorrange, colormap = :balance, interpolate = false)
 display(fig)
+##
+m, n, _ = size(ϕs[1])
+ℓ = length(ϕs)
+ϕ_save = zeros(Float64, m, n, 1, ℓ * Nₑ)
+score_save = copy(ϕ_save)
+for i in ProgressBar(1:ℓ)
+    for j in 1:Nₑ
+        ϕ_save[:,:,1, (i-1)*Nₑ + j] .= real.(ϕs[i])[:,:,j]
+        score_save[:,:,1, (i-1)*Nₑ + j] .= score(ϕs[i], parameters)[:,:,j]
+    end
+end
+##
+size(ϕ_save)
+ϕ_data = reshape(ϕ_save, (m * n, ℓ * Nₑ))
+Σ²ₑ = cov(ϕ_data')
+Σ² = Knew * ϵ^2  / 2
+luΣ² = lu(Σ²)
+scorish = reshape(luΣ² \ ϕ_data[:,1], (m, n))
+##
+norm(Σ²ₑ - Σ²) / norm(Σ²ₑ)

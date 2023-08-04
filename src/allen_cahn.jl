@@ -6,6 +6,7 @@ using Statistics
 using HDF5
 using Random
 using LinearAlgebra
+import Base: *, +
 GLMakie.activate!(inline=false)
 Random.seed!(1234)
 rng = MersenneTwister(1234);
@@ -71,6 +72,9 @@ struct RungeKutta4{S, T, U}
 end
 RungeKutta4(ϕ) = RungeKutta4([similar(ϕ) for i in 1:4], similar(ϕ), similar(ϕ), [0.0])
 rk = RungeKutta4(ϕ)
+rk1 = RungeKutta4(ϕ)
+rk2 = RungeKutta4(ϕ)
+rk3 = rk1 + rk2
 function (runge_kutta::RungeKutta4)(rhs!, x, parameters, dt)
     @inbounds let
         @. runge_kutta.x̃ = x
