@@ -167,12 +167,12 @@ end
 #11: scaled <c'^2>/<c>^2
 
 # choose what to plot
-var_choice = 4 # number to choose what to plot 
+var_choice = 3 # number to choose what to plot 
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels, 4: animation
 panel_variable_num = 3 # choose what each panel in the animation will vary with, 1: magnitude, 2: U, 3: lambda
 line_variable_num = 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
 
-plot_approx = false
+plot_approx = true #false
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
 
@@ -301,7 +301,12 @@ for pvar in ProgressBar(panel_variable)
                             data2[:, nindx, mindx] = λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(x)))[:]
                             data3[:, nindx, mindx] = λ*c_mean_pred.*(1 .- c_mean_pred./(1 .+ mag*cos.(x)))[:]
                         elseif var_choice == 3
-                            data2[:, nindx, mindx] = c_mean_pred
+                            #data2[:, nindx, mindx] = c_mean_pred
+                            data_folder = "data/gpu/kappa_0.001/two_state/"
+                            data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_2.jld2"
+                            load_name = joinpath(data_folder, data_name)
+                            @load load_name cs
+                            data2[:, nindx, mindx] = (cs[:, 1, end] + cs[:, 2, end])/2
                         end
                     elseif var_choice == 9
                         data2[:, nindx, mindx] = abs.(real(ifft(im*k[:,1].*fft(flux_c_square_mean))));
@@ -374,7 +379,8 @@ else
 end
 
 if var_choice == 3
-    leg_end = ", c̅ ≈ 1/2*[tanh(a*log10(λ)+1]*(1-√(1-|Δ|^2)) + √(1-|Δ|^2) + Δ/2*tanh(b*log10(λ))" 
+    leg_end = ", N = 2" 
+    #leg_end = ", c̅ ≈ 1/2*[tanh(a*log10(λ)+1]*(1-√(1-|Δ|^2)) + √(1-|Δ|^2) + Δ/2*tanh(b*log10(λ))" 
 elseif var_choice == 2
     leg_end = ", ∇c"
 elseif var_choice ==4
@@ -397,7 +403,7 @@ if var_choice == 2 && plot_approx == true || var_choice == 3 && plot_approx == t
         lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
         lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
     end
-    ylims!(nanminimum(data), nanmaximum(data)) 
+    ylims!(nanminimum([nanminimum(data), nanminimum(data2)]), nanmaximum([(nanmaximum(data)), nanmaximum(data2)])) 
     axislegend()
 elseif var_choice == 6 && plot_approx == true
     fig = lines(
