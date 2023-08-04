@@ -1,5 +1,5 @@
 using Statistics
-using FFTW, GLMakie, ProgressBars
+using FFTW, ProgressBars
 using ReactingTracers
 using JLD2
 using CUDA
@@ -7,6 +7,8 @@ using CUDA
 Array_Type = CuArray
 # timestep minimum
 #1/\kappa k^2
+
+
 
 # function closure, a function that returns a function 
 # this is a closure because it closes over the variables x, ℱ, ℱ⁻¹

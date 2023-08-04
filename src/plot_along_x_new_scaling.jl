@@ -162,10 +162,10 @@ function specify_colours(num_colours)
 end
 
 # choose what to plot
-var_choice = 4 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and λ⟨c⟩(1-⟨c⟩/(1+Δ(x))) and λ⟨c⟩(1-⟨c⟩+⟨c'2⟩/⟨c⟩>/(1+Δ(x))), 7: plot the error in mean estimate as a function of x ((⟨c⟩ - c_0)^2/c_0^2), 8: plot ⟨c^2⟩
+var_choice = 3 # number to choose what to plot 1: FFT(<c) and FFT(Δ(x)), 2: ∇c, <uc>, 3: <c>, 4: <c'^2>, 5: <c'^2>/<c>^2>, 6: d<uc>/dx and λ⟨c⟩(1-⟨c⟩/(1+Δ(x))) and λ⟨c⟩(1-⟨c⟩+⟨c'2⟩/⟨c⟩>/(1+Δ(x))), 7: plot the error in mean estimate as a function of x ((⟨c⟩ - c_0)^2/c_0^2), 8: plot ⟨c^2⟩
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels, 4: animation
 panel_variable_num = 3 # choose what each panel will vary with, 1: magnitude, 2: U, 3: lambda
-line_variable_num = 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
+line_variable_num = 4 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
 
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
@@ -184,15 +184,16 @@ if varu != 0
     magnitudes = [0.7] #[0.5, 0.7, 0.9]
     velocities = [1, 3, 6, 13, 25]
     lambdas = [0.5, 1, 1.5] #
-    lambdas = [0.1, 1.0, 10.0, 100.0] #[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 5] #[0.01, 0.1, 1, 5] #[0.01, 0.1, 0.5, 1, 1.5, 5, 10]
-    lambdas = sort([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.5, 3.0, 3.5, 4.0, 5.0, 7.0, 8.0, 9.0, 10.0, 100.0])#lambdas = [3.0, 5.0, 6.0, 10.0]
-    lambdas = [0.1, 1.0, 2.0, 10.0]
+    lambdas = [0.01, 0.1, 1.0, 10.0] #, 100.0] #[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 5] #[0.01, 0.1, 1, 5] #[0.01, 0.1, 0.5, 1, 1.5, 5, 10]
+    #lambdas = [1.0]
+    #lambdas = sort([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.5, 3.0, 3.5, 4.0, 5.0, 7.0, 8.0, 9.0, 10.0, 100.0])#lambdas = [3.0, 5.0, 6.0, 10.0]
+    #lambdas = [0.1, 1.0, 2.0, 10.0]
 
     # subgroup for each line plot
     line_magnitudes = [0.7] #[0.5, 0.7, 0.9]
     line_velocity = [1]
     line_lambdas = [3, 5, 6, 10.0]
-    line_kappas = [0.01, 0.001]
+    line_kappas = [0.01, 0.001, 0.0001]
 end
 
 x_length = 1024
@@ -224,7 +225,7 @@ axlabelsize = 30;
 axtitlesize = 40;
 
 
-line_options = (; linewidth = 3)
+line_options = (; linewidth = 6)
 
 # plot nabla c against <uc> for various choices of delta
 fig = Figure(resolution = (3024, 1964),)
@@ -256,8 +257,10 @@ for pvar in ProgressBar(panel_variable)
         end
 
         # set the axis values
+
         if plot_type != 1 && mindx == 1 || nindx == 1 && mindx == 1 
             axtitle = axis_title(mag, u_force, λ; quantity_to_vary = panel_variable_num)
+            #print(nindx)
             ax = choose_axis(fig, plot_type, nindx, axtitle, var_choice)
             ax.xlabelsize = axlabelsize
             ax.ylabelsize = axlabelsize
@@ -266,8 +269,14 @@ for pvar in ProgressBar(panel_variable)
         
         # load in the data
         if varu != 0
-            data_folder = "data/new_scaling"
-            if κ != 0.001
+            data_folder = "data/gpu/kappa_0.001"
+            if κ == 0.001
+                data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * ".jld2"
+            elseif κ == 0.01
+                data_folder = "data/gpu/kappa_0.01"
+                data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * ".jld2"
+            elseif κ == 0.0001
+                data_folder = "data/gpu/kappa_0.0001"
                 data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * ".jld2"
             else
                 data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * ".jld2"
@@ -276,7 +285,7 @@ for pvar in ProgressBar(panel_variable)
             load_name = joinpath(data_folder, data_name)
             #load_name = data_name
             try
-                @load load_name c_mean flux_mean c_squared_mean gc cs fs
+                @load load_name c_mean flux_mean c_squared_mean gc# cs fs
 
                         # obtain the variables for plotting
         if varu != 0
@@ -289,16 +298,18 @@ for pvar in ProgressBar(panel_variable)
         end
 
         # plot the data
-        lines!(ax, xvar, yvar, label = "U = " * string(u_force) * ", |Δ| = " * string(mag) * ", λ = " * string(round(λ, sigdigits = 1)), color = colours[mindx]; line_options...)
+        lines!(ax, xvar, yvar, label = "κ =" * string(κ), color = colours[mindx]; line_options...)
+        #lines!(ax, xvar, yvar, label = "U = " * string(u_force) * ", |Δ| = " * string(mag) * ", λ = " * string(round(λ, sigdigits = 1)) * ", κ =" * string(κ), color = colours[mindx]; line_options...)
         if var_choice ==6
             if varu != 0
-                lines!(ax, xvar, (λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(x))))[:], label = "λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))", linestyle = :dash, color = colours[mindx]; line_options...)
-                lines!(ax, xvar, (λ*c_mean .- λ*c_squared_mean./(1 .+ mag*cos.(x)))[:], label = "λ(⟨c⟩-(⟨c⟩^2 + c'^2)/(1+Δ(x)))", linestyle = :dot, color = colours[mindx]; line_options...)
-                lines!(ax, xvar, -1/(1+λ)*mag^2*sin.(2*x)[:], label = "-1/(1+λ)|Δ|^2sin(2x)", linestyle = :dashdot, color = colours[mindx]; line_options...)
+                #lines!(ax, xvar, (λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(x))))[:], label = "λ⟨c⟩(1-⟨c⟩/(1+Δ(x)))", linestyle = :dash, color = colours[mindx]; line_options...)
+                #lines!(ax, xvar, (λ*c_mean .- λ*c_squared_mean./(1 .+ mag*cos.(x)))[:], label = "λ(⟨c⟩-(⟨c⟩^2 + c'^2)/(1+Δ(x)))", linestyle = :dot, color = colours[mindx]; line_options...)
+                #lines!(ax, xvar, -1/(1+λ)*mag^2*sin.(2*x)[:], label = "-1/(1+λ)|Δ|^2sin(2x)", linestyle = :dashdot, color = colours[mindx]; line_options...)
+                lines!(ax, xvar, 1 ./(4*c_0) .* (mag*(mag .+ mag*cos.(x).^2 .+ 2*cos.(x))), label = L"λ\frac{|Δ|(|Δ| + |Δ|cos^2x + 2cosx)}{4Δ(x)}", linestyle = :dash, color = colours[mindx]; line_options...)
             end
-        elseif var_choice == 4
-            #lines!(ax, xvar, (sin.(xvar)).^2*mag^2*u_force^2/(λ*(1+λ)), linestyle = :dash, color = :black, label = L"Δ^2U^2sin^2(x)/(λ(1+λ))^2"; line_options...)
-            lines!(ax, xvar, mean((cs[:, 101:end-1] .- c_mean[:, 1]).^2, dims = 2)[:], linestyle = :dot, color = colours[mindx], label = L"⟨(c-⟨c⟩)^2⟩"; line_options...)
+        elseif var_choice == 4 && λ > 9
+            lines!(ax, xvar, (sin.(xvar)).^2*mag^2*u_force^2/(λ*(1+λ)), linestyle = :dash, color = :black, label = L"Δ^2U^2sin^2(x)/(λ(1+λ))^2"; line_options...)
+            #lines!(ax, xvar, mean((cs[:, 101:end-1] .- c_mean[:, 1]).^2, dims = 2)[:], linestyle = :dot, color = colours[mindx], label = L"⟨(c-⟨c⟩)^2⟩"; line_options...)
         end
             if mindx == 1
                 if var_choice == 1
@@ -310,8 +321,10 @@ for pvar in ProgressBar(panel_variable)
                     print(coeffs)        # Linear regression
                     lines!(ax, xvar, coeffs[1] .+ coeffs[2]*xvar, color = :black, label = "∇⟨uc⟩ = -" * string(round(-coeffs[2], sigdigits = 2)) * "∇c + " * string(round(coeffs[1], sigdigits = 1)); line_options...)
                 elseif var_choice == 3
-                    lines!(ax, xvar, 1 .+ mag*cos.(xvar), label = "1+Δ(x)")
-                    lines!(ax, xvar, ones(length(xvar))*(1 - mag^2)^0.5, label = "√(1-|Δ|^2)")
+                    #lines!(ax, xvar, 1 .+ mag*cos.(xvar), label = "1+Δ(x)"; line_options...)
+                    #lines!(ax, xvar, ones(length(xvar))*(1 - mag^2)^0.5, label = "√(1-|Δ|^2)"; line_options...)
+                    #lines!(ax, xvar, 1/2 .+ mag*cos.(xvar)/2 .+ (1 - mag^2)^0.5/2, label = "1/2(Δ(x) + √(1-|Δ|^2))"; line_options...)
+
                 elseif var_choice == 7
                     lines!(ax, xvar, abs.(c_mean[:] .- (1 - mag^2)^0.5)./abs.(c_mean[:]), label = "|⟨c⟩ - √(1-|Δ|^2)|/|⟨c⟩|")
                 end
@@ -339,4 +352,4 @@ end
 #end
 display(fig)
 
-save(name_figure(plot_type, var_choice, panel_variable_num, line_variable_num, line_variable, mag, u_force, λ), fig) #, pt_per_unit=2) # size = 600 x 450 pt
+save(name_figure(plot_type, var_choice, panel_variable_num, line_variable_num, line_variable, mag, u_force, λ), fig) #, pt_per_unit=2) # size = 600 x 450 

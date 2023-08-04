@@ -28,15 +28,15 @@ function rk4(h, c, u, u_t0ph_2, u_t0ph, κ, k, U_force)
     return dc
 end
 
-κ = 0.01     # "subgrid" kappa
-dt = 4*2/(0.125*8*κ*1024^2)#1/5250
+κ = 0.001     # "subgrid" kappa
+dt = 8*2/(8*κ*1024^2)#1/5250
 #dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
 
 N=250
 av=1/N
 
 # setup grid
-x_length = 1024
+x_length = 512
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
@@ -45,7 +45,7 @@ adv2 = adv_closure(zeros(x_length, N))
 ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
 magnitudes = [0.7] #[0.9, 0.7, 0.5, 0.1]
-lambdas = [1.0, 0.1, 0.01, 10.0]
+lambdas = [1.0] #, 0.1, 0.01, 10.0]
 #lambdas = [1, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.1, ] #[0.01, 0.1, 1, 10, 100, 0.5, 1.5, 2]
 #lambdas = [2, 3, 5, 7, 1.7, 1.4, 1.8, 1.6, 1.9, 2.5, 3.5, 4, 8, 9]
 U_force = 1
@@ -84,6 +84,7 @@ for λ in ProgressBar(lambdas)
 
     cs=zeros(x_length, tmax);
     fs=zeros(x_length, tmax);
+    umat = zeros(N, tmax);
     for t in ProgressBar(t_array)
       if minimum(abs.(save_times .- t)) == 0
         if t > 0
@@ -94,6 +95,7 @@ for λ in ProgressBar(lambdas)
           #display(f2)
           cs[:, round(Int, t)]= mean(c,dims = 2)
           fs[:, round(Int, t)]= (1/N)*c*u'
+          umat[:, round(Int, t)]=u
         end
       end
       #dc .= rk4(dt, c, U_force*u, κ, k)
@@ -140,7 +142,7 @@ for λ in ProgressBar(lambdas)
 
   
   save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * ".jld2"
-  @save save_name c_mean flux_mean c_squared_mean gc cs fs
+  @save save_name c_mean flux_mean c_squared_mean gc cs fs umat
 end
 
 end

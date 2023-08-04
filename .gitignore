@@ -9,6 +9,7 @@
 *.mp4*
 *.png*
 *.xlsx*
+*.ppt*
 *.json*
 *.hdf5*
 *tmp*

@@ -31,17 +31,18 @@ GLMakie.activate!(inline=false)
 #14: find the size of the sin(kx) and cos(kx) components for d⟨uc⟩/dx
 #15: scaled ⟨c̅⟩
 #16: scaled range c̅
-
+#17: ⟨<c'^2>(x)/(<c>^2(x)⟩ scaled to 1
+#18: scaled fourier coefficients for ⟨c'^2⟩
 
 stat_type = 3
-plot_type = 3 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
-line_variable = 2 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ, 5: plot with κ(with var u non u) # code doesn't work with 3 yet...
+plot_type = 1 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
+line_variable = 4 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ, 5: plot with κ(with var u non u) # code doesn't work with 3 yet...
 
 kmax = 2 # in plotting the FT, the max number of sin and cosine fourier modes
 multiple_data = false #true
 data_line_colours = 1 # 1: colour the lines by the multiple data variable, 2: colour the lines by the line_variable
 
-if stat_type == 11 || stat_type == 12 || stat_type == 14
+if stat_type == 11 || stat_type == 12 || stat_type == 14 || stat_type == 18
     print("here")
     global multiple_data
     multiple_data = true # allows multiple lines to be plotted
@@ -75,24 +76,19 @@ if stat_type == 13
     end
 end
 
-test = true
-a = 10
-if a == 10
-    global test
-    test = false
-end
-
 markers = ['o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd'] #, "hexagon", "cross", "xcross", "utriangle", "dtriangle"];
 
 # setup grid
-x_length = 1024
+x_length = 512 #1024
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 magnitudes = [0.1, 0.5, 0.7, 0.9]
+magnitudes = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 lambdas = sort([0.1, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.5, 3, 3.5, 4.0, 5.0, 7.0, 8.0, 9.0, 10.0, 100.0])
-lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0])
+lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+lambdas = [0.1, 1, 10]
 kappas = [0.01, 0.001, 0.0001]
 
 velocities = [1.0]#, 10, 100]
@@ -103,6 +99,12 @@ mag_choice_indx = 3
 lambda_or_kappa_choice_indx = 3
 vel_choice_indx = 1
 
+# sizes
+legendsize = 60;
+axlabelsize = 40;
+axtitlesize = 50;
+axticksize = 40;
+line_options = (; linewidth = 4, markersize = 50)
 
 function specify_colours(num_colours)
     colours = cmap("Gouldian", N = num_colours)
@@ -132,8 +134,10 @@ function axis_labels(stat_type)
         y_label = "FT coeff size"
     elseif stat_type == 15
         y_label = "scaled ⟨c̅⟩"
-    else
+    elseif stat_type == 16
         y_label = "scaled range(c̅)"
+    else
+        y_label = "normalised ⟨⟨c'^2⟩(x)/c̅(x)^2⟩"
     end
     return y_label
 end
@@ -205,6 +209,8 @@ function obtain_stat_means(stat_type, c_mean, flux_mean, c_squared_mean, gc, mag
         stat = (mean(c_mean[:]) - (1-mag^2)^0.5)/(1 - (1-mag^2)^0.5)
     elseif stat_type ==16
         stat = (maximum(c_mean) - minimum(c_mean))/(2*mag)
+    elseif stat_type == 17
+        stat = mean(abs.(c_squared_mean .- c_mean.^2)./c_mean.^2)
     end
     return stat
 end
@@ -238,8 +244,10 @@ function axis_title(stat_type, plot_type)
         stat_type_lab = "d⟨uc⟩_dx fourier coefficients_"
     elseif stat_type == 15
         stat_type_lab = "scaled ⟨c̅⟩_"
+    elseif stat_type == 16
+        stat_type_lab = "scaled range c̅_"
     else
-        stat_type_lab = "scaled range c̅"
+        stat_type_lab = "normalised_c_prime_square_over_c_squared_"
     end
     if line_variable !=3
         if plot_type !=1 && line_variable !=1
@@ -325,11 +333,17 @@ for l_indx in 1:length(lambdas)
         end
     end
 end
+if stat_type == 17
+    for m_indx = 1:length(magnitudes)
+        for n_indx = 1:length(velocities) 
+            matrix[:, m_indx, n_indx] = matrix[:, m_indx, n_indx]/maximum(matrix[:, m_indx, n_indx])
+        end
+    end
+end
+
 matrix = replace(matrix) do x
     x == 0 ? NaN : x
 end
-
-line_options = (; linewidth = 10, markersize = 30)
 
 fig = Figure(resolution = (3024, 1964),
 xlabelsize = 22, ylabelsize = 22, xgridstyle = :dash, ygridstyle = :dash, xtickalign = 1,
@@ -347,12 +361,6 @@ else
     ax = Axis(fig[1, 1]) #, yscale = log10)
     #ax = Axis(fig[1, 1], yscale = log10)
 end
-
-# sizes
-legendsize = 60;
-axlabelsize = 40;
-axtitlesize = 50;
-axticksize = 40;
 
 # plot the data
 if plot_type == 1 # Δ on x

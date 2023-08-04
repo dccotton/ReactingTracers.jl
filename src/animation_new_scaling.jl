@@ -6,6 +6,7 @@ using FFTW
 using PerceptualColourMaps
 using DataFrames, GLM
 using ProgressBars
+using Statistics
 GLMakie.activate!(inline=false)
 
 # plot the particle concentration time evolution against delta
@@ -17,13 +18,13 @@ k  = wavenumbers(x_length)
 # variables to choose to plot
 mag = 0.7
 u_force = 1.0
-λ = 10.0
+λ = 1.0
 
 Δconc = mag*cos.(x)
 
 # load in the data
-data_folder = "data/new_scaling"
-#data_folder = ""
+#data_folder = "data/new_scaling"
+data_folder = ""
 data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_0.001.jld2"
 movie_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_0.001.mp4"
 movie_name_fluc = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_0.001_fluc.mp4"
@@ -89,7 +90,7 @@ ax.xlabel = "time"
 ax.ylabel = "⟨c'⟩(t)"
 
 # test whether the fluctuations sum to 0
-fig2 = Figure()
+fig2 =   Figure()
 ax = Axis(fig2[1, 1]) #; ax_options...)
 #lines!(ax, c_mean[:, 1])
 lines!(ax, mean((cs[:, 101:end_time] .- c_mean[:, 1]).^2, dims = 2)[:])
@@ -110,17 +111,18 @@ sum(sum(cs[:, 101:end_time] .- c_mean[:, 1], dims = 1)[:])
 
 # choose to animate the mean of the fluctuations evolving in time
 time = Observable(1)
-cs_line = @lift(cs[:, $time].^2 .- c_mean[:].^2)
+time_to_av = 100
+cs_line = @lift(mean((cs[:, $time:$time+time_to_av] .- c_mean[:, 1]).^2, dims = 2)[:])
 
 fig = lines(x, cs_line, color = :blue, linewidth = 4, label = "c",
     axis = (title = @lift("Δ(x) = " * string(mag) * "cos(x) t = $(round($time, digits = 1))"),))
-    ylims!(minimum(cs[:, 1:end_time].^2 .- c_mean[:].^2), maximum(cs[:, 1:end_time].^2 .- c_mean[:].^2))
+    #ylims!(minimum(cs[:, 1:end_time].^2 .- c_mean[:].^2), maximum(cs[:, 1:end_time].^2 .- c_mean[:].^2))
 #lines!(x, Δconc/maximum(Δconc)*(maximum(cs) - minimum(cs))/2 .+ (maximum(cs) + minimum(cs))/2, color = :red, linewidth = 0.5, label = L"scaled Δ(x)")
 lines!(x, c_squared_mean[:] .- c_mean[:].^2, color = :black, linewidth = 1, label = L"⟨c'2⟩")
 axislegend()
 
 framerate = 10
-timestamps = range(start = 1, stop = end_time, step=1)
+timestamps = range(start = 1, stop = end_time-time_to_av, step=1)
 
 record(fig, movie_name_fluc_squared, timestamps;
         framerate = framerate) do t

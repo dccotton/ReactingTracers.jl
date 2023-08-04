@@ -3,7 +3,7 @@
 using GLMakie
 using JLD2
 using FileIO
-
+using NaNStatistics
 using ReactingTracers
 using FFTW
 using PerceptualColourMaps
@@ -21,15 +21,17 @@ function name_figure(var_choice, quantity_to_vary, line_variable_num, line_varia
     elseif var_choice == 4
         method_name = "concentration_fluctuation_squared_"
     elseif var_choice == 5
-        method_name = "relavitve_concentration_squared_"
+        method_name = "relative_concentration_squared_"
     elseif var_choice == 6
         method_name = "flux_gradient_"
     elseif var_choice == 7
         method_name = "concentration_against_prediction"
     elseif var_choice ==8
         method_name = "concentration_squared_"
-    else
+    elseif var_choice ==9
         method_name = "concentration_squared_terms_dominance"
+    else
+        method_name = "normalised_concentration_fluctutation_squared_"
     end
 
     if quantity_to_vary == 1
@@ -84,7 +86,7 @@ function load_variables_u(ax, var_choice, c_mean, flux_mean, c_squared_mean, gc,
     elseif var_choice == 3
         xvar = x
         yvar = c_mean[:]
-    elseif var_choice == 4
+    elseif var_choice == 4 || var_choice == 11
         xvar = x
         yvar = c_squared_mean[:] .- c_mean[:].^2;
     elseif var_choice == 5
@@ -102,7 +104,7 @@ function load_variables_u(ax, var_choice, c_mean, flux_mean, c_squared_mean, gc,
     elseif var_choice == 9
         xvar = x
         yvar = abs.(λ*c_squared_mean[:].* (1 .- 2*c_mean[:]./(1 .+ mag*cos.(x))))
-    else
+    elseif var_choice == 10
         ft_cf=abs.(fft(c_squared_mean .- c_mean.^2))[:]
         #ft_cf=abs.(fft(c_squared_mean))[:]
         xvar = k
@@ -136,8 +138,10 @@ function choose_axis(var_choice)
     elseif var_choice ==8
         xlabel = "x"
         ylabel = "⟨c^2⟩"
-    else
+    elseif var_choice == 9
         ylabel = L"λ⟨c_1^2⟩(1-2c̅/(1+Δ(x)))"
+    else
+        ylabel = "scaled ⟨c'^2⟩/⟨c⟩^2"
     end
     return ylabel
 end
@@ -160,6 +164,7 @@ end
 #8: plot ⟨c^2⟩
 #9: plot the magnitude of the terms in the equation for d<c'2>/dt (this needs to be fixed)
 #10: FFT(⟨c'^2⟩)
+#11: scaled <c'^2>/<c>^2
 
 # choose what to plot
 var_choice = 4 # number to choose what to plot 
@@ -167,6 +172,7 @@ plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3:
 panel_variable_num = 3 # choose what each panel in the animation will vary with, 1: magnitude, 2: U, 3: lambda
 line_variable_num = 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
 
+plot_approx = false
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
 
@@ -180,6 +186,10 @@ u_force = 1.0
 
 data_folder = "data/gpu/kappa_0.001/code_fixes/"
 
+# c̅ fitted values
+c0_dict = Dict("0.1" => 1.5, "0.5" => 1.5169, "0.7" => 1.5260, "0.9" => 1.5446)
+c1_dict = Dict("0.1" => 1.5, "0.5" => 1.5261, "0.7" => 1.5466, "0.9" => 1.5909)
+
 # options to choose from
 
 if varu != 0
@@ -188,7 +198,7 @@ if varu != 0
     lambdas = [0.5, 1, 1.5] #
     lambdas = [0.1, 1.0, 10.0, 100.0]
     lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
-    lambdas = sort([0.01, 0.1, 0.5, 1.0, 1.2, 1.4, 1.5, 10.0, 100.0])
+    #lambdas = sort([0.01, 0.1, 0.5, 1.0, 1.2, 1.4, 1.5, 10.0, 100.0])
 
     # subgroup for each line plot
     line_magnitudes = [0.1, 0.5, 0.7, 0.9]
@@ -282,8 +292,10 @@ for pvar in ProgressBar(panel_variable)
                     if var_choice == 2
                         data2[:, nindx, mindx] = gc[:]
                     elseif var_choice == 6 || var_choice == 3
-                        c_0_mean = (0.5*tanh(1.437392192121757*log10(λ))+0.5) * (1 - (1-mag^2)^0.5) + (1-mag^2)^0.5
-                        c_1_mean = (0.5*tanh(1.44621301525833*log10(λ))+0.5)*0.7
+                        c_0_val = c0_dict[string(mag)]
+                        c_1_val = c1_dict[string(mag)]
+                        c_0_mean = (0.5*tanh(c_0_val*log10(λ))+0.5) * (1 - (1-mag^2)^0.5) + (1-mag^2)^0.5
+                        c_1_mean = (0.5*tanh(c_0_val*log10(λ))+0.5)*0.7
                         c_mean_pred = c_0_mean .+ c_1_mean*cos.(x)                        
                         if var_choice == 6
                             data2[:, nindx, mindx] = λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(x)))[:]
@@ -330,6 +342,14 @@ for pvar in ProgressBar(panel_variable)
     nindx = nindx + 1
 end
 
+if var_choice == 11
+    for m_indx = 1:length(panel_variable)
+        for n_indx = 1:length(line_variable) 
+            data[:, m_indx, n_indx] = data[:, m_indx, n_indx]/maximum(data[:, m_indx, n_indx])
+        end
+    end
+end
+
 # now plot the data
 panel_indx = Observable(1)
 end_time = length(panel_variable)
@@ -364,7 +384,7 @@ elseif var_choice == 6
     leg_end_3 = "λc̅_{pred}(1-c̅_{pred}/(1+Δ(x)))"
 end
 
-if var_choice == 2 || var_choice == 3
+if var_choice == 2 && plot_approx == true || var_choice == 3 && plot_approx == true
     fig = lines(
         x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4;
         line_options...,
@@ -377,9 +397,9 @@ if var_choice == 2 || var_choice == 3
         lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
         lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
     end
-    ylims!(minimum(data), maximum(data)) 
+    ylims!(nanminimum(data), nanmaximum(data)) 
     axislegend()
-elseif var_choice == 6
+elseif var_choice == 6 && plot_approx == true
     fig = lines(
         x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4;
         line_options...,
@@ -396,9 +416,9 @@ elseif var_choice == 6
                 lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end_2)
                 lines!(fig.axis, x,  @lift(data3[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dot, label = leg_start * string(line_variable[indx]) * leg_end_3)
             end
-    ylims!(minimum(data), maximum(data)) 
+    ylims!(nanminimum(data), nanmaximum(data)) 
     axislegend()
-elseif var_choice == 4
+elseif var_choice == 4 && plot_approx == true
     fig = lines(
         x, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]);
         line_options...,
@@ -411,7 +431,7 @@ elseif var_choice == 4
         lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
         lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
     end
-    ylims!(minimum(data), maximum(data)) 
+    ylims!(nanminimum(data), nanmaximum(data)) 
     axislegend()
 elseif var_choice == 1 || var_choice == 10
     fig = scatterlines(k, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]); line_options...,
@@ -443,7 +463,7 @@ else
     for indx = 2:length(line_variable)
         lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
     end
-    ylims!(minimum(data), maximum(data))
+    ylims!(nanminimum(data), nanmaximum(data))
     axislegend()
 end
 

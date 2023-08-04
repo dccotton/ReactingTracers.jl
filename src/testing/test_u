@@ -1,0 +1,37 @@
+using Statistics
+using FFTW, GLMakie, ProgressBars
+using ReactingTracers
+using JLD2
+
+N = 250
+κ = 0.01     # "subgrid" kappa
+dt = 4*2/(κ*1024^2)
+
+t=0
+
+tmax= 200#1000
+t_array = collect(t:dt:tmax);
+u_mat = zeros(N, length(t_array))
+
+for tindx in 1:length(t_array)
+
+      u=randn(1,N) #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
+      #ind = findall(u -> abs(u) >= 5, u)
+      #u[ind] .= 5
+      u_t0ph_2 = u .- dt/2*u .+ sqrt(2*dt)*randn(1,N)
+      u_t0ph = u_t0ph_2 .- dt/2*u_t0ph_2 .+ sqrt(2*dt)*randn(1,N)
+      u = u_t0ph
+      u_mat[:, tindx] = u
+end
+
+fig2 = Figure()
+ax = Axis(fig2[1, 1]) #; ax_options...)
+lines!(ax, maximum(u_mat, dims = 2)[:])
+lines!(ax, minimum(u_mat, dims = 2)[:])
+lines!(ax, mean(u_mat, dims = 2)[:])
+ax.xlabel = "Time"
+ax.ylabel = "Diff"
+
+fig2
+
+mean(u_mat.^2)
