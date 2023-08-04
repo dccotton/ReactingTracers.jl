@@ -39,6 +39,7 @@ ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
 magnitudes = [0.9, 0.7, 0.5, 0.1]
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+lambdas = [100.0]
 U_force = 1
 
 for U_force in velocities
@@ -57,7 +58,7 @@ for λ in ProgressBar(lambdas)
     # plotting parameters
 
     t=0
-    tmax= 100
+    tmax= 1000
     t_array = collect(t:dt:tmax);
     t_indices = round.(Int, collect(1:length(t_array)/tmax:length(t_array)))
     save_times = t_array[t_indices]
@@ -67,9 +68,10 @@ for λ in ProgressBar(lambdas)
     for t in ProgressBar(t_array)
       if minimum(abs.(save_times .- t)) == 0
         if t > 0
+          print(t)
           cs[:, :, round(Int, t)]= c
-          if t > 2 && sum((c .- cs[:, :, round(Int, t) - 1]).^2) < 10^-10
-            print(t)
+          if t > 10 && sum((c .- cs[:, :, round(Int, t) - 1]).^2) < 10^-10
+            print(c, t)
             cs = cs[:, :, 1:round(Int, t)]
             break
           end
@@ -78,7 +80,7 @@ for λ in ProgressBar(lambdas)
 
       dc = adv2(c, U_force*u, κ, k)
       revc = reverse(c)
-      @. c = c +  dc*dt + λ*dt*(c)*(1-c/(1 + Δconc)) + (revc-c)*dt/2
+      @. c = c +  dc*dt + λ*dt*(c)*(1-2*c/(1 + Δconc)) + (revc-c)*dt/2
 
       if any(isnan, c)
         print("nan")
@@ -95,11 +97,14 @@ end
 
 end
 
-mag = 0.7
+mag  = 0.7
 U_force = 1.0
-λ = 1.0
+λ = 100.0
+
+data_folder = "data/gpu/kappa_0.001/two_state/"
 save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(N) * ".jld2"
-@load save_name cs
+load_name = joinpath(data_folder, save_name)
+@load load_name cs
 colours = specify_colours(3)
 
 # now plot the data
@@ -111,7 +116,7 @@ axis = (xlabel = "x", title = @lift("t= " * string($t_indx))),)
 lines!(fig.axis, x,  @lift(cs[:, 2, $t_indx]), color = colours[2], linewidth = 4, label = L"c_2")
 lines!(fig.axis, x,  @lift(cs[:, 1, $t_indx] + cs[:, 2, $t_indx]), color = colours[3], linewidth = 4, label = L"c_1 + c_2")
 axislegend()
-ylims!(minimum([minimum(cs), minimum(sum(cs, dims = 2))]), maximum([maximum(cs), maximum(sum(cs, dims = 2))]))
+#ylims!(minimum([minimum(cs), minimum(sum(cs, dims = 2))]), maximum([maximum(cs), maximum(sum(cs, dims = 2))]))
 
 framerate = 10
 timestamps = range(start = 1, stop = end_time, step=1)
@@ -120,3 +125,5 @@ record(fig, "test.mp4", timestamps;
         framerate = framerate) do t
     t_indx[] = t
 end
+
+(cs[:, 1, end] + cs[:, 2, end])

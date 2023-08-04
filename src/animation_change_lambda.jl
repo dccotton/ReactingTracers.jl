@@ -167,11 +167,12 @@ end
 #11: scaled <c'^2>/<c>^2
 
 # choose what to plot
-var_choice = 3 # number to choose what to plot 
+var_choice = 4 # number to choose what to plot 
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels, 4: animation
 panel_variable_num = 3 # choose what each panel in the animation will vary with, 1: magnitude, 2: U, 3: lambda
 line_variable_num = 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
 
+compare_to_two_state = true
 plot_approx = true #false
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
@@ -301,40 +302,59 @@ for pvar in ProgressBar(panel_variable)
                             data2[:, nindx, mindx] = λ*c_mean.*(1 .- c_mean./(1 .+ mag*cos.(x)))[:]
                             data3[:, nindx, mindx] = λ*c_mean_pred.*(1 .- c_mean_pred./(1 .+ mag*cos.(x)))[:]
                         elseif var_choice == 3
-                            #data2[:, nindx, mindx] = c_mean_pred
-                            data_folder = "data/gpu/kappa_0.001/two_state/"
-                            data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_2.jld2"
-                            load_name = joinpath(data_folder, data_name)
-                            @load load_name cs
-                            data2[:, nindx, mindx] = (cs[:, 1, end] + cs[:, 2, end])/2
+                            if compare_to_two_state
+                                data_folder = "data/gpu/kappa_0.001/two_state/"
+                                data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_2.jld2"
+                                load_name = joinpath(data_folder, data_name)
+                                @load load_name cs
+                                if cs[50, 1, end] == 0
+                                    data2[:, nindx, mindx] = (cs[:, 1, end-1] + cs[:, 2, end-1])
+                                else
+                                    data2[:, nindx, mindx] = (cs[:, 1, end] + cs[:, 2, end])
+                                end
+                            else
+                                data2[:, nindx, mindx] = c_mean_pred
+                            end
+
                         end
                     elseif var_choice == 9
                         data2[:, nindx, mindx] = abs.(real(ifft(im*k[:,1].*fft(flux_c_square_mean))));
                         data3[:, nindx, mindx] = abs.(-λ*c_cube_mean./(1 .+ mag*cos.(x)));
                     elseif var_choice == 4
-                        
-                        ft_cf=(fft(c_squared_mean .- c_mean.^2))[:]
-                        fluctuation_label = string(round(real(ft_cf[1])/x_length, sigdigits = 2))
-                        max_k = 2
-                        approx_func = zeros(x_length)
-                        for indx = 1:max_k
-                            if indx % 2 == 0
-                                a = real(ft_cf[indx+1])*2/x_length #cosine component
-                                b = -imag(ft_cf[indx+1])*2/x_length #sin component
+                        if compare_to_two_state
+                            data_folder = "data/gpu/kappa_0.001/two_state/"
+                            data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_2.jld2"
+                            load_name = joinpath(data_folder, data_name)
+                            @load load_name cs
+                            if cs[50, 1, end] == 0
+                                data2[:, nindx, mindx] = (cs[:, 1, end-1] - cs[:, 2, end-1]).^2
                             else
-                                a = -real(ft_cf[indx+1])*2/x_length
-                                b = imag(ft_cf[indx+1])*2/x_length
+                                data2[:, nindx, mindx] = (cs[:, 1, end] - cs[:, 2, end]).^2
                             end                            
-                            approx_func = approx_func .+ a*cos.(indx*x) .+ b*sin.(indx*x)
-                            fluctuation_label = fluctuation_label * "+ " * string(round(a, sigdigits = 2)) * "cos(" * string(indx) *"x) + " * string(round(b, sigdigits = 2)) * "sin(" * string(indx) *"x)"
-                        end
-                
-                        fluctuation_labels[nindx, mindx] = fluctuation_label
-                        approx_func = approx_func .+ real(ft_cf[1])/x_length
+                        else
+                            ft_cf=(fft(c_squared_mean .- c_mean.^2))[:]
+                            fluctuation_label = string(round(real(ft_cf[1])/x_length, sigdigits = 2))
+                            max_k = 2
+                            approx_func = zeros(x_length)
+                            for indx = 1:max_k
+                                if indx % 2 == 0
+                                    a = real(ft_cf[indx+1])*2/x_length #cosine component
+                                    b = -imag(ft_cf[indx+1])*2/x_length #sin component
+                                else
+                                    a = -real(ft_cf[indx+1])*2/x_length
+                                    b = imag(ft_cf[indx+1])*2/x_length
+                                end                            
+                                approx_func = approx_func .+ a*cos.(indx*x) .+ b*sin.(indx*x)
+                                fluctuation_label = fluctuation_label * "+ " * string(round(a, sigdigits = 2)) * "cos(" * string(indx) *"x) + " * string(round(b, sigdigits = 2)) * "sin(" * string(indx) *"x)"
+                            end
+                    
+                            fluctuation_labels[nindx, mindx] = fluctuation_label
+                            approx_func = approx_func .+ real(ft_cf[1])/x_length
 
-                        
-                        #ft_cf[4:1022] = zeros(1022-4+1)
-                        data2[:, nindx, mindx] = approx_func #real((ifft(ft_cf)));
+                            
+                            #ft_cf[4:1022] = zeros(1022-4+1)
+                            data2[:, nindx, mindx] = approx_func #real((ifft(ft_cf)));
+                        end
                     end
                 end
             catch systemerror
@@ -379,12 +399,19 @@ else
 end
 
 if var_choice == 3
-    leg_end = ", N = 2" 
-    #leg_end = ", c̅ ≈ 1/2*[tanh(a*log10(λ)+1]*(1-√(1-|Δ|^2)) + √(1-|Δ|^2) + Δ/2*tanh(b*log10(λ))" 
+    if compare_to_two_state
+        leg_end = ", N = 2" 
+    else
+        leg_end = ", c̅ ≈ 1/2*[tanh(a*log10(λ)+1]*(1-√(1-|Δ|^2)) + √(1-|Δ|^2) + Δ/2*tanh(b*log10(λ))" 
+    end
 elseif var_choice == 2
     leg_end = ", ∇c"
 elseif var_choice ==4
-    leg_end = ", fourier approx"
+    if compare_to_two_state
+        leg_end = ", N = 2" 
+    else
+        leg_end = ", fourier approx"
+    end
 elseif var_choice == 6
     leg_end_2 = "λc̅(1-c̅/(1+Δ(x)))"
     leg_end_3 = "λc̅_{pred}(1-c̅_{pred}/(1+Δ(x)))"
@@ -437,7 +464,7 @@ elseif var_choice == 4 && plot_approx == true
         lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
         lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
     end
-    ylims!(nanminimum(data), nanmaximum(data)) 
+    ylims!(nanminimum([nanminimum(data), nanminimum(data2)]), nanmaximum([(nanmaximum(data)), nanmaximum(data2)])) 
     axislegend()
 elseif var_choice == 1 || var_choice == 10
     fig = scatterlines(k, @lift(data[:, $panel_indx, 1]), color = colours[1], linewidth = 4, label = leg_start * string(line_variable[1]); line_options...,
