@@ -74,7 +74,7 @@ function name_figure(var_choice, quantity_to_vary, line_variable_num, line_varia
     return fig_save_name
 end
 
-function load_variables_u(ax, var_choice, c_mean, flux_mean, c_squared_mean, gc, x, k, λ, mag)
+function load_variables_u(var_choice, c_mean, flux_mean, c_squared_mean, gc, x, k, λ, mag)
     if var_choice == 1
         ft_cf=abs.(fft(c_mean))[:]
         xvar = k
@@ -167,12 +167,13 @@ end
 #11: scaled <c'^2>/<c>^2
 
 # choose what to plot
-var_choice = 4 # number to choose what to plot 
+var_choice = 2 # number to choose what to plot 
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels, 4: animation
 panel_variable_num = 3 # choose what each panel in the animation will vary with, 1: magnitude, 2: U, 3: lambda
-line_variable_num = 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
+line_variable_num = 2 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
 
 compare_to_two_state = true
+compare_to_three_state = true 
 plot_approx = true #false
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
@@ -195,7 +196,7 @@ c1_dict = Dict("0.1" => 1.5, "0.5" => 1.5261, "0.7" => 1.5466, "0.9" => 1.5909)
 
 if varu != 0
     magnitudes = [0.7] #[0.1, 0.5, 0.7, 0.9]
-    velocities = [1]
+    velocities = [1.0]
     lambdas = [0.5, 1, 1.5] #
     lambdas = [0.1, 1.0, 10.0, 100.0]
     lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
@@ -203,7 +204,7 @@ if varu != 0
 
     # subgroup for each line plot
     line_magnitudes = [0.1, 0.5, 0.7, 0.9]
-    line_velocity = [1]
+    line_velocity = [1.0]
     line_lambdas = [3, 5, 6, 10.0]
     line_kappas = [0.01, 0.001]
 end
@@ -283,15 +284,38 @@ for pvar in ProgressBar(panel_variable)
             end
             # Concatenate the folder and file name to get the full path
             load_name = joinpath(data_folder, data_name)
-            try
+            #try
                 @load load_name c_mean flux_mean c_squared_mean gc #c_cube_mean flux_c_square_mean # cs fs
                 # obtain the variables for plotting
                 if varu != 0
-                    xvar, yvar = load_variables_u(ax, var_choice, c_mean, flux_mean, c_squared_mean, gc, x, k, λ, mag)
+                    xvar, yvar = load_variables_u(var_choice, c_mean, flux_mean, c_squared_mean, gc, x, k, λ, mag)
                     data[:, nindx, mindx] = yvar
 
                     if var_choice == 2
-                        data2[:, nindx, mindx] = gc[:]
+                        if compare_to_two_state
+                            data_folder = "data/gpu/kappa_0.001/two_state/"
+                            data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_2.jld2"
+                            load_name = joinpath(data_folder, data_name)
+                            @load load_name cs
+                            if cs[50, 1, end] == 0
+                                data2[:, nindx, mindx] = -cs[:, 1, end-1] + cs[:, 2, end-1]
+                            else
+                                data2[:, nindx, mindx] = -cs[:, 1, end] + cs[:, 2, end]
+                            end
+                            if compare_to_three_state
+                                data_folder = "data/gpu/kappa_0.001/three_state/"
+                                data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_3.jld2"
+                                load_name = joinpath(data_folder, data_name)
+                                @load load_name cs
+                                if cs[50, 1, end] == 0
+                                    data3[:, nindx, mindx] = -sqrt(2)*cs[:, 1, end-1] + sqrt(2)*cs[:, 3, end-1]
+                                else
+                                    data3[:, nindx, mindx] = -sqrt(2)*cs[:, 1, end] + sqrt(2)*cs[:, 3, end]
+                                end
+                            end
+                        else
+                            data2[:, nindx, mindx] = gc[:]
+                        end                        
                     elseif var_choice == 6 || var_choice == 3
                         c_0_val = c0_dict[string(mag)]
                         c_1_val = c1_dict[string(mag)]
@@ -308,9 +332,23 @@ for pvar in ProgressBar(panel_variable)
                                 load_name = joinpath(data_folder, data_name)
                                 @load load_name cs
                                 if cs[50, 1, end] == 0
-                                    data2[:, nindx, mindx] = (cs[:, 1, end-1] + cs[:, 2, end-1])
+                                    data2[:, nindx, mindx] = cs[:, 1, end-1] + cs[:, 2, end-1]
                                 else
-                                    data2[:, nindx, mindx] = (cs[:, 1, end] + cs[:, 2, end])
+                                    data2[:, nindx, mindx] = cs[:, 1, end] + cs[:, 2, end]
+                                end
+                                if compare_to_three_state
+                                    try
+                                    data_folder = "data/gpu/kappa_0.001/three_state/"
+                                    data_name = "mag_" * string(mag) * "_U_" * string(u_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_3.jld2"
+                                    load_name = joinpath(data_folder, data_name)
+                                    @load load_name cs
+                                    if cs[50, 1, end] == 0
+                                        data3[:, nindx, mindx] = cs[:, 1, end-1] + cs[:, 2, end-1] + cs[:, 3, end-1]
+                                    else
+                                        data3[:, nindx, mindx] = (cs[:, 1, end] + cs[:, 2, end] + cs[:, 3, end])
+                                    end
+                                catch SystemError
+                                end
                                 end
                             else
                                 data2[:, nindx, mindx] = c_mean_pred
@@ -330,7 +368,7 @@ for pvar in ProgressBar(panel_variable)
                                 data2[:, nindx, mindx] = (cs[:, 1, end-1] - cs[:, 2, end-1]).^2
                             else
                                 data2[:, nindx, mindx] = (cs[:, 1, end] - cs[:, 2, end]).^2
-                            end                            
+                            end
                         else
                             ft_cf=(fft(c_squared_mean .- c_mean.^2))[:]
                             fluctuation_label = string(round(real(ft_cf[1])/x_length, sigdigits = 2))
@@ -357,9 +395,9 @@ for pvar in ProgressBar(panel_variable)
                         end
                     end
                 end
-            catch systemerror
-                print("no file named " * data_name)
-            end
+            #catch systemerror
+            #    print("no file named " * data_name)
+            #end
         end
 
         mindx = mindx + 1
@@ -404,8 +442,18 @@ if var_choice == 3
     else
         leg_end = ", c̅ ≈ 1/2*[tanh(a*log10(λ)+1]*(1-√(1-|Δ|^2)) + √(1-|Δ|^2) + Δ/2*tanh(b*log10(λ))" 
     end
+    if compare_to_three_state
+        leg_end_2 = ", N = 3"
+    end
 elseif var_choice == 2
+    if compare_to_two_state
+        leg_end = ", N = 2"
+    else
     leg_end = ", ∇c"
+    end
+    if compare_to_three_state
+        leg_end_2 = ", N = 3"
+    end
 elseif var_choice ==4
     if compare_to_two_state
         leg_end = ", N = 2" 
@@ -426,11 +474,21 @@ if var_choice == 2 && plot_approx == true || var_choice == 3 && plot_approx == t
             ylabel = ylabel,
             title = @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"),))
     lines!(fig.axis, x,  @lift(data2[:, $panel_indx, 1]), color = colours[1], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[1]) * leg_end)
+    if compare_to_three_state
+        lines!(fig.axis, x,  @lift(data3[:, $panel_indx, 1]), color = colours[1], linewidth = 4, linestyle = :dot, label = leg_start * string(line_variable[1]) * leg_end_2)
+    end
     for indx = 2:length(line_variable)
         lines!(fig.axis, x,  @lift(data[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, label = leg_start * string(line_variable[indx]))
         lines!(fig.axis, x,  @lift(data2[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dash, label = leg_start * string(line_variable[indx]) * leg_end)
+        if compare_to_three_state
+            lines!(fig.axis, x,  @lift(data3[:, $panel_indx, indx]), color = colours[indx], linewidth = 4, linestyle = :dot, label = leg_start * string(line_variable[indx]) * leg_end_2)
+        end
     end
-    ylims!(nanminimum([nanminimum(data), nanminimum(data2)]), nanmaximum([(nanmaximum(data)), nanmaximum(data2)])) 
+    if compare_to_three_state
+        ylims!(nanminimum([nanminimum(data), nanminimum(data2), nanminimum(data3)]), nanmaximum([(nanmaximum(data)), nanmaximum(data2), nanminimum(data3)])) 
+    else
+       ylims!(nanminimum([nanminimum(data), nanminimum(data2)]), nanmaximum([(nanmaximum(data)), nanmaximum(data2)])) 
+    end
     axislegend()
 elseif var_choice == 6 && plot_approx == true
     fig = lines(

@@ -25,7 +25,7 @@ end
 dt = 8*2/(80*κ*1024^2)#1/5250
 #dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
 
-N=2
+N=3
 av=1/N
 
 # setup grid
@@ -37,7 +37,7 @@ adv2 = adv_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
-magnitudes = [0.9, 0.7, 0.5, 0.1]
+magnitudes = [0.1] #[0.9, 0.7, 0.5, 0.1]
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 #lambdas = [100.0]
 U_force = 1
@@ -47,14 +47,15 @@ for mag in magnitudes
 for λ in ProgressBar(lambdas)
   # initiate velocities
     u= randn(1, N) #[-1, +1] #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
-    u[1] = -1
-    u[2] = 1
+    u[1] = -sqrt(2)
+    u[2] = 0
+    u[3] = sqrt(2)
     # initial concentration
     c= 1*ones(x_length,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
     dc = copy(c)
     # concentration bias
     Δconc = mag*cos.(x)
-    Δconc = Δconc*ones(1, N);
+    #Δconc = Δconc*ones(1, N);
     # plotting parameters
 
     t=0
@@ -79,8 +80,9 @@ for λ in ProgressBar(lambdas)
       end
 
       dc = adv2(c, U_force*u, κ, k)
-      revc = reverse(c, dims = 2)
-      @. c = c +  dc*dt + λ*dt*(c)*(1-2*c/(1 + Δconc)) + (revc-c)*dt/2
+      c[:, 1] = c[:, 1] .+ dc[:, 1]*dt .+ (λ-1)*dt*c[:,1] .- dt*4*λ*c[:,1].^2 ./(1 .+ Δconc) .+ dt*c[:, 2]/2
+      c[:, 2] = c[:, 2] .+ dc[:, 2]*dt .+ (λ-1)*dt*c[:,2] .- dt*2*λ*c[:,2].^2 ./(1 .+ Δconc) .+ dt*c[:, 1] .+ dt*c[:, 3]
+      c[:, 3] = c[:, 3] .+ dc[:, 3]*dt .+ (λ-1)*dt*c[:,3] .- dt*4*λ*c[:,3].^2 ./(1 .+ Δconc) .+ dt*c[:, 2]/2
 
       if any(isnan, c)
         print("nan")
@@ -127,3 +129,5 @@ record(fig, "test.mp4", timestamps;
 end
 
 (cs[:, 1, end] + cs[:, 2, end])
+
+c= 1*ones(512,3)

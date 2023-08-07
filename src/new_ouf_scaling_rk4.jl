@@ -81,7 +81,7 @@ for λ in ProgressBar(lambdas)
     #lines!(x,Δconc[:, 1], label = L"\Delta(x)")
     #axislegend()#position = :rt, bgcolor = (:grey90, 0.25));
     #fig
-
+    c_total = zeros(x_length, N, tmax)
     cs=zeros(x_length, tmax);
     fs=zeros(x_length, tmax);
     umat = zeros(N, tmax);
@@ -93,6 +93,7 @@ for λ in ProgressBar(lambdas)
           #lines!(ax, x,mean(c,dims=2)[:])
           #lines!(ax, x,(1/N)*c*u'[:]) #plots mean (c) and mean (uc) at each x value, u' = (1 x N), c = (N x length(x)) so matrix multiplication to give u'c = (1 x length(x))
           #display(f2)
+          c_total[:, :, round(Int, t)] = c
           cs[:, round(Int, t)]= mean(c,dims = 2)
           fs[:, round(Int, t)]= (1/N)*c*u'
           umat[:, round(Int, t)]=u
@@ -142,7 +143,7 @@ for λ in ProgressBar(lambdas)
 
   
   save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * ".jld2"
-  @save save_name c_mean flux_mean c_squared_mean gc cs fs umat
+  @save save_name c_mean flux_mean c_squared_mean gc cs fs umat c_total
 end
 
 end

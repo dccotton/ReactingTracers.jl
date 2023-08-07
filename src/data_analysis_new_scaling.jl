@@ -37,6 +37,7 @@ GLMakie.activate!(inline=false)
 stat_type = 3
 plot_type = 1 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
 line_variable = 4 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ, 5: plot with κ(with var u non u) # code doesn't work with 3 yet...
+num_states_to_add = 1 # 0: no new states, 1: add 2 state, 2: add 2 and 3 state
 
 kmax = 2 # in plotting the FT, the max number of sin and cosine fourier modes
 multiple_data = false #true
