@@ -75,18 +75,13 @@ function steady_state_probabilities(number_of_states)
 end
 
 κ = 0.001     # "subgrid" kappa
-dt = 8*2/(80*κ*1024^2)#1/5250
+dt = 8*2/(800*κ*1024^2)#1/5250
 #dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
-
-number_of_states = 2
-p_list = steady_state_probabilities(number_of_states)
 
 # setup grid
 x_length = 512
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
-
-adv2 = adv_closure(zeros(x_length, number_of_states))
 
 ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
@@ -95,6 +90,11 @@ lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4,
 #lambdas = [100.0]
 U_force = 1
 
+state_list = [100]
+
+for number_of_states in state_list
+    adv2 = adv_closure(zeros(x_length, number_of_states))
+    p_list = steady_state_probabilities(number_of_states)
 for U_force in velocities
 for mag in magnitudes
 for λ in ProgressBar(lambdas)
@@ -123,10 +123,9 @@ for λ in ProgressBar(lambdas)
     for t in ProgressBar(t_array)
       if minimum(abs.(save_times .- t)) == 0
         if t > 0
-          print(t)
           cs[:, :, round(Int, t)]= c
-          if t > 10 && sum((c .- cs[:, :, round(Int, t) - 1]).^2) < 10^-10
-            print(c, t)
+          if t > 10 && sum((c .- cs[:, :, round(Int, t) - 1]).^2) < 10^-5
+            print(t)
             cs = cs[:, :, 1:round(Int, t)]
             break
           end
@@ -138,9 +137,10 @@ for λ in ProgressBar(lambdas)
       for m = 1:number_of_states
         c_qm_addition = zeros(x_length)
         for n = 1:number_of_states
-            c_qm_addition = create_qmn_matrix(m, n, number_of_states)*c_old[:, n]
+            #print(create_qmn_matrix(m, n, number_of_states))
+            c_qm_addition = c_qm_addition + create_qmn_matrix(m-1, n-1, number_of_states)*c_old[:, n]
         end
-        c[:, m] = c[:, m] .+ dc[:, m]*dt .+ λ*dt*c[:,m] .- dt*λ*c[:,m].^2 ./((1 .+ Δconc)*p_list[m]) + c_qm_addition
+        c[:, m] = c[:, m] .+ dc[:, m]*dt .+ λ*dt*c[:,m] .- dt*λ*c[:,m].^2 ./((1 .+ Δconc)*p_list[m]) .+ c_qm_addition*dt
       end
 
       if any(isnan, c)
@@ -150,19 +150,20 @@ for λ in ProgressBar(lambdas)
 
     end
   
-  save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(N) * ".jld2"
+  save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(number_of_states) * ".jld2"
   @save save_name cs
 end
 
 end
 
 end
-
+end
 mag  = 0.7
 U_force = 1.0
 λ = 100.0
 
-data_folder = "data/gpu/kappa_0.001/two_state/"
+data_folder = "data/gpu/kappa_0.001/100_state/"
+N=100
 save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(N) * ".jld2"
 load_name = joinpath(data_folder, save_name)
 @load load_name cs

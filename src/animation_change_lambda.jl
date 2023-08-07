@@ -343,9 +343,9 @@ for pvar in ProgressBar(panel_variable)
                                     load_name = joinpath(data_folder, data_name)
                                     @load load_name cs
                                     if cs[50, 1, end] == 0
-                                        data3[:, nindx, mindx] = cs[:, 1, end-1] + cs[:, 2, end-1] + cs[:, 3, end-1]
+                                        data3[:, nindx, mindx] = sum(cs[:, :, end-1], dims = 2)
                                     else
-                                        data3[:, nindx, mindx] = (cs[:, 1, end] + cs[:, 2, end] + cs[:, 3, end])
+                                        data3[:, nindx, mindx] = sum(cs[:, :, end], dims = 2)
                                     end
                                 catch SystemError
                                 end
