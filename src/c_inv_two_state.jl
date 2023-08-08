@@ -15,14 +15,14 @@ function adv_closure(x)
   ℱ⁻¹ = plan_ifft(x, 1)
   function adv(c,um,κ,k)
     ch = ℱ * c
-    tmp = +im*k.*ch.*um
+    tmp = +im*k.*ch.*um -κ*k.*k.*ch
     dc=real.(ℱ⁻¹ * tmp) #d/dx --> =-ik
     return dc
   end
 end
 
 κ = 0.001     # "subgrid" kappa
-dt = 8*2/(800*κ*1024^2)#1/5250
+dt = 8*2/(80*κ*1024^2)#1/5250
 #dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
 
 N=2
@@ -68,7 +68,6 @@ for λ in ProgressBar(lambdas)
     for t in ProgressBar(t_array)
       if minimum(abs.(save_times .- t)) == 0
         if t > 0
-          print(t)
           cs[:, :, round(Int, t)]= c
           if t > 10 && sum((c .- cs[:, :, round(Int, t) - 1]).^2) < 10^-10
             print(c, t)
@@ -80,13 +79,16 @@ for λ in ProgressBar(lambdas)
 
       dc = adv2(c, U_force*u, κ, k)
       revc = reverse(c, dims = 2)
-      @. c = c +  dc*dt - λ*dt*(c-1/(1 + Δconc)) + (revc-c)*dt/2
+      @. c = c +  dc*dt - λ*dt*(c-0.5/(1 + Δconc)) + (revc-c)*dt/2
 
       if any(isnan, c)
         print("nan")
         break
       end
-
+      if maximum(c) > 10^4
+        print("c too high")
+        break
+      end
     end
   
   save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(N) * "_inv.jld2"
@@ -97,9 +99,9 @@ end
 
 end
 
-mag  = 0.9
+mag = 0.7
 U_force = 1.0
-λ = 0.01
+λ = 0.5
 N=2
 data_folder = "data/gpu/kappa_0.001/2_state_inverse/"
 save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(N) * "_inv.jld2"
