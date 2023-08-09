@@ -87,7 +87,7 @@ function full_qmn_matrix(number_of_states)
     return matrix
 end
 
-number_of_states = 10
+number_of_states = 2
 p = construct_p(number_of_states) # get the probabilities
 us = u_list(number_of_states) # get the velocities
 Q = full_qmn_matrix(number_of_states) # get the transition matrix
@@ -104,7 +104,6 @@ k  = wavenumbers(x_length)
 # forcing conditions
 magnitudes = [0.7]#, 0.9, 0.5, 0.1]
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
-lambdas = lambdas[14:end]
 
 # define what the functions to
 ∂x = im * k
@@ -139,7 +138,7 @@ for δ in magnitudes
         push!(mean_theta, mean(real.(sum(θs))))
         if i > 100000 
             if abs(mean_theta[i] - mean_theta[i-100])/(mean_theta[i]) < cauchy_criteria
-                println("converged")
+                println(λ, "converged")
                 println(maximum(maximum(real.(θs))))
                 break
             end

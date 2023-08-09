@@ -169,6 +169,61 @@ function specify_colours(num_colours)
     return colours
 end
 
+function choose_colours(col_option, approx_num, dat_indx, line_indx)
+    # returns the colour selection
+    if col_option == 1 #each type of approx is a different_colour
+        col_indx = approx_num
+        # get the number of coloured lines
+        #if no_u
+            #num_lines = 1
+        #    num_lines = num_lines + 1
+        #end
+        #if include_no_coupling
+        #    num_lines = num_lines + 1
+        #if include_inverse
+        #    num_lines = num_lines + 1
+        #end
+        #if include_coupling
+        #    num_lines = num_lines + 1
+        #end
+        colours = specify_colours(5)
+    elseif col_option == 2 # each state is a different colour
+        col_indx = dat_indx
+        colours = specify_colours(length(states_to_compare_to) + 2)
+    else
+        col_indx = line_indx # each line_var is a different colour
+        colours = specify_colours(length(line_variable))
+    end
+    colour = colours[col_indx]
+    return colour
+end
+
+function choose_markers(marker_option, approx_num, dat_indx, line_indx)
+    # returns the colour selection
+    if marker_option == 1 #each type of approx is a different_colour
+        col_indx = approx_num
+    elseif marker_option == 2 # each state is a different colour
+        col_indx = dat_indx
+    else
+        col_indx = line_indx # each line_var is a different colour
+    end
+    marker = markers[col_indx]
+    return marker
+end
+
+function choose_linestyles(l_option, approx_num, dat_indx, line_indx)
+    # returns the colour selection
+    if l_option == 1 #each type of approx is a different_colour
+        col_indx = approx_num
+    elseif l_option == 2 # each state is a different colour
+        col_indx = dat_indx
+    else
+        col_indx = line_indx # each line_var is a different colour
+    end
+    ls = linestyles[col_indx]
+    return ls
+end
+
 function load_data(data_folder, state, var_choice, mag = 0.7, u_force = 1.0, κ = 0.001)
     data = zeros(x_length, length(panel_variable), length(line_variable))
         # load in the data
@@ -377,38 +432,35 @@ end
 #12: <uc>
 
 markers = ['o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd', 'o', 'x', '+', '*', 's', 'd'] #, "hexagon", "cross", "xcross", "utriangle", "dtriangle"];
-linestyles = [:solid, :dash, :dot, :dashdot]
+linestyles = [:solid, :dash, :dashdot, :dot, :solid, :dash, :dot, :dashdot, :solid, :dash, :dot, :dashdot]
 
 # choose what to plot
-var_choice = 3 # number to choose what to plot 
+var_choice = 12 # number to choose what to plot 
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels, 4: animation
 panel_variable_num = 3 # choose what each panel in the animation will vary with, 1: magnitude, 2: U, 3: lambda
 line_variable_num = 2 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
-states_to_compare_to = [3] #, 3, 10]
+states_to_compare_to = [2, 3, 10, 20] #, 3, 10]
 
 plot_approx = false # will plot the approximations
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
-include_inverse = true # will plot calculations assuming <1/c>
+include_inverse = false #true # will plot calculations assuming <1/c>
 include_coupling = true # will plot the results when the two are coupled
+include_no_coupling = true # will plot when not coupled
+
+# plotting options
+col_option = 2  #1: each type of approx is a different_colour, 2: each state is a different colour, 3: each line_var is a different colour
+marker_option = 3 # same as above
+line_option = 1
 
 if var_choice == 3 || var_choice == 4 || var_choice == 8
     include_inverse = include_inverse
 else
-    include_inverse == false
+    global include_inverse
+    include_inverse = false
 end
 
-# get the number of coloured lines
-num_lines = 1
-if no_u
-    num_lines = num_lines + 1
-end
-if include_inverse
-    num_lines = num_lines + 1
-end
-if include_coupling
-    num_lines = num_lines + 1
-end
+
 
 varu = 1 # variance of u
 
@@ -500,8 +552,7 @@ for state in states_to_compare_to
     end
     if include_coupling
         data_folder = "data/gpu/kappa_0.001/" * string(state) * "_state_coupled_bigger_t_step/"
-        data_folder = "data/gpu/kappa_0.001/" * string(state) * "_state_coupled_smaller_t_step/"
-        #data_folder = "data/gpu/kappa_0.001/" * string(state) * "_state_coupled/"
+        data_folder = "data/gpu/kappa_0.001/" * string(state) * "_state_coupled/"
         data = load_data(data_folder, state, var_choice)
         all_data3[indx, :, :, :] = data
         leg_end3[indx] = ", coupled N = " * string(state)
@@ -530,12 +581,6 @@ ylabel = choose_axis(var_choice)
     # colours = different colour for u, different state
     # linestyle = different linestyle for each 
 
-if length(line_variable) == 1
-    colours = specify_colours(num_lines+1)
-else
-    colours = specify_colours(length(line_variable))
-end
-
 # legend name
 if line_variable_num == 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
     leg_start = "Δ = "
@@ -549,23 +594,80 @@ end
 
 if plot_approx
 else
-    if length(line_variable) == 1
-        col_indx = 1
-        fig = scatterlines(x, @lift(all_data[1, :, $panel_indx, 1]), color = colours[col_indx], marker = markers[1], label = leg_start[1] * string(line_variable[1]) * leg_end[1]; line_options...,
+
+
+
+    # this plots the full_ensemble
+    approx_num = 1
+    dat_indx = 1
+    line_indx = 1
+    colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+    marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+    linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+    fig = scatterlines(x, @lift(all_data[1, :, $panel_indx, 1]), color = colour, marker = marker, linestyle = linestyle, label = leg_start[1] * string(line_variable[1]) * leg_end[1]; line_options...,
         axis = (xlabel = "x", ylabel = ylabel, title = @lift("λ = $(round(panel_variable[$panel_indx], digits = 2))"),))
-        for dat_indx = 2:length(states_to_compare_to)+1
-            scatterlines!(fig.axis, x,  @lift(all_data[dat_indx, :, $panel_indx, 1]), color = colours[2], linestyle = linestyles[dat_indx], marker = markers[dat_indx], label = leg_start * string(line_variable[1]) * leg_end[dat_indx]; line_options...)
-            if include_inverse
-                scatterlines!(fig.axis, x,  @lift(all_data2[dat_indx, :, $panel_indx, 1]), color = colours[3], linestyle = linestyles[dat_indx], marker = markers[dat_indx], label = leg_start * string(line_variable[1]) * leg_end2[dat_indx]; line_options...)
+        for dat_indx = 2:length(states_to_compare_to)+1 
+            if include_no_coupling # plots the line for each state
+                approx_num = 2
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data[dat_indx, :, $panel_indx, 1]), color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[1]) * leg_end[dat_indx]; line_options...)
             end
-            if include_coupling
-                scatterlines!(fig.axis, x,  @lift(all_data3[dat_indx, :, $panel_indx, 1]), color = colours[4], linestyle = linestyles[dat_indx+2], marker = markers[dat_indx], label = leg_start * string(line_variable[1]) * leg_end3[dat_indx]; line_options...)
+            if include_inverse # plots the line for each state
+                approx_num = 3
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data2[dat_indx, :, $panel_indx, 1]), color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[1]) * leg_end2[dat_indx]; line_options...)
+            end
+            if include_coupling # plots the line for each state
+                approx_num = 4
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data3[dat_indx, :, $panel_indx, 1]), color = color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[1]) * leg_end3[dat_indx]; line_options...)
+            end
+            if no_u
+                approx_num = 5
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data4[dat_indx, :, $panel_indx, 1]), color = color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[1]) * leg_end4[dat_indx]; line_options...)
             end
         end
-    end
-    for indx = 2:length(line_variable)
-        for dat_indx = 1:length(states_to_compare_to)+1
-            scatterlines!(fig.axis, x,  @lift(all_data[dat_indx, :, $panel_indx, indx]), color = colours[indx], marker = markers[dat_indx], label = leg_start * string(line_variable[indx]) * leg_end[dat_indx]; line_options...)
+    for line_indx = 2:length(line_variable)
+        scatterlines!(x, @lift(all_data[1, :, $panel_indx, line_indx]), color = colour, marker = marker, linestyle = linestyle, label = leg_start[1] * string(line_variable[line_indx]) * leg_end[1]; line_options...,)
+        for dat_indx = 2:length(states_to_compare_to)+1
+            if include_no_coupling # plots the line for each state
+                approx_num = 2
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data[dat_indx, :, $panel_indx, line_indx]), color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[line_indx]) * leg_end[dat_indx]; line_options...)
+            end
+            if include_inverse # plots the line for each state
+                approx_num = 3
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data2[dat_indx, :, $panel_indx, line_indx]), color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[line_indx]) * leg_end2[dat_indx]; line_options...)
+            end
+            if include_coupling # plots the line for each state
+                approx_num = 4
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                print(approx_num, linestyle)
+                scatterlines!(fig.axis, x,  @lift(all_data3[dat_indx, :, $panel_indx, line_indx]), color = color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[line_indx]) * leg_end3[dat_indx]; line_options...)
+            end
+            if no_u
+                approx_num = 5
+                colour = choose_colours(col_option, approx_num, dat_indx, line_indx)
+                marker = choose_markers(marker_option, approx_num, dat_indx, line_indx)
+                linestyle = choose_linestyles(line_option, approx_num, dat_indx, line_indx)
+                scatterlines!(fig.axis, x,  @lift(all_data4[dat_indx, :, $panel_indx, line_indx]), color = color = colour, marker = marker, linestyle = linestyle, label = leg_start * string(line_variable[line_indx]) * leg_end4[dat_indx]; line_options...)
+            end
         end
     end
     #if include_inverse

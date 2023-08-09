@@ -89,7 +89,7 @@ function full_qmn_matrix(number_of_states)
     return matrix
 end
 
-number_of_states = 10
+number_of_states = 3
 p = construct_p(number_of_states) # get the probabilities
 us = u_list(number_of_states) # get the velocities
 Q = full_qmn_matrix(number_of_states) # get the transition matrix
@@ -105,7 +105,9 @@ k  = wavenumbers(x_length)
 
 # forcing conditions
 magnitudes = [0.7]#, 0.9, 0.5, 0.1]
-lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+#lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+#lambdas = lambdas[13:end]
 
 # define what the functions to
 ∂x = im * k
@@ -115,12 +117,13 @@ P⁻¹ = plan_ifft!(field_tuples.θs[1])
 
 
 cauchy_criteria = 1e-7
-dt = minimum([0.25/(x_length  * sqrt(number_of_states)), 1/(x_length^2 * κ)])
+t_mult = 100
+dt = minimum([0.25/(t_mult*x_length  * sqrt(number_of_states)), 1/(t_mult*x_length^2 * κ)])
 
 
 
 for δ in magnitudes
-    for λ in lambdas
+    for (lindx, λ) in enumerate(lambdas)
         
         mean_theta = Float64[]
         # load in c⁻¹
@@ -137,7 +140,21 @@ for δ in magnitudes
         # Initialize with c⁰ 
         [θ .= c⁰ * p[i] for (i,θ) in enumerate(θs)] # initiate the initial concentrations with the initial probabilities
 
-    for i in ProgressBar(1:10000000)
+        # instead try initialising with what the solution was before
+        #if lindx > 1
+        #    data_folder = "data/gpu/kappa_0.001/code_fixes/"
+        #    data_name = "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(lambdas[lindx-1]) * ".jld2"
+            
+         #   load_name = joinpath(data_folder, data_name)
+         #   @load load_name c_mean
+         #   [θ .= c_mean * p[i] for (i,θ) in enumerate(θs)]
+
+            #load_name = "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(lambdas[lindx-1]) * "_k_" * string(0.001) * "_N_" * string(number_of_states) * ".jld2"
+            #@load load_name cs
+            #[θ .= cs[i] for (i,θ) in enumerate(θs)]
+        #end
+
+    for i in ProgressBar(1:10000000*t_mult)
         rhs!(θ̇s, θs, simulation_parameters)
         @. θs += θ̇s * dt
         if any(isnan.(θs[1]))
@@ -146,15 +163,15 @@ for δ in magnitudes
         end
         push!(mean_theta, mean(real.(sum(θs))))
         if i > 100000 
-            if abs(mean_theta[i] - mean_theta[i-100])/(mean_theta[i]) < cauchy_criteria
-                println("converged")
-                println(maximum(maximum(cs)))
+            if abs(mean_theta[i] - mean_theta[i-100])/abs(mean_theta[i]) < cauchy_criteria
+                println(λ, "converged")
+                println(maximum(maximum(real.(θs))))
                 break
             end
         end
     end
     cs = real.(θs)
-    println(abs(mean_theta[end] - mean_theta[end-100])/(mean_theta[end]))
+    println(abs(mean_theta[end] - mean_theta[end-100])/abs(mean_theta[end]))
     println(maximum(maximum(cs)))
     save_name = "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(number_of_states) * ".jld2"
     @save save_name cs mean_theta

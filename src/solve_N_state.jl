@@ -87,7 +87,7 @@ function full_qmn_matrix(number_of_states)
     return matrix
 end
 
-number_of_states = 10
+number_of_states = 2
 p = construct_p(number_of_states) # get the probabilities
 us = u_list(number_of_states) # get the velocities
 Q = full_qmn_matrix(number_of_states) # get the transition matrix
@@ -103,7 +103,7 @@ k  = wavenumbers(x_length)
 
 # forcing conditions
 magnitudes = [0.7, 0.9, 0.5, 0.1]
-lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0, 0.01])
 
 # define what the functions to
 ∂x = im * k
@@ -128,7 +128,6 @@ for δ in magnitudes
         # Initialize with c⁰ 
         [θ .= c⁰ * p[i] for (i,θ) in enumerate(θs)] # initiate the initial concentrations with the initial probabilities
 
-
         for i in ProgressBar(1:1000000)
             rhs!(θ̇s, θs, simulation_parameters)
             @. θs += θ̇s * dt
@@ -142,7 +141,7 @@ for δ in magnitudes
                 if abs(mean_theta[i] - mean_theta[i-100])/(mean_theta[i]) < cauchy_criteria
                     cs = real.(θs)
                     println(maximum(maximum(cs)))
-                    println("converged")
+                    println(λ, "converged")
                     break
                 end
             end
