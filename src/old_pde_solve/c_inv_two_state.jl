@@ -21,9 +21,9 @@ function adv_closure(x)
   end
 end
 
-κ = 0.001     # "subgrid" kappa
+κ = 0.0#0.001     # "subgrid" kappa
 dt = 8*2/(80*κ*1024^2)#1/5250
-#dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
+dt = 8*2/(800*0.001*1024^2)#1/5250 for £kappa = 0.001
 
 N=2
 av=1/N
@@ -50,7 +50,7 @@ for λ in ProgressBar(lambdas)
     u[1] = -1
     u[2] = 1
     # initial concentration
-    c= 1*ones(x_length,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
+    c= 0.5*ones(x_length,N) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
     dc = copy(c)
     # concentration bias
     Δconc = mag*cos.(x)

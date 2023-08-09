@@ -9,7 +9,6 @@ function specify_colours(num_colours)
   return colours
 end
 
-
 function adv_closure(x)
   ℱ = plan_fft(x, 1)
   ℱ⁻¹ = plan_ifft(x, 1)
@@ -22,7 +21,7 @@ function adv_closure(x)
 end
 
 κ = 0.001     # "subgrid" kappa
-dt = 8*2/(80*κ*1024^2)#1/5250
+dt = 8*2/(1600*κ*1024^2)#1/5250
 #dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
 
 N=2
@@ -37,14 +36,27 @@ adv2 = adv_closure(zeros(x_length, N))
 
 ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
-magnitudes = [0.9, 0.7, 0.5, 0.1]
+magnitudes = [0.7] #[0.9, 0.7, 0.5, 0.1]
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
+lambdas = lambdas[9:end]
 #lambdas = [100.0]
 U_force = 1
 
 for U_force in velocities
 for mag in magnitudes
 for λ in ProgressBar(lambdas)
+    # load in <1/c>
+    data_folder = "data/gpu/kappa_0.001/2_state_inverse/"
+    data_name =  "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(0.001) * "_N_" * string(2) * ".jld2"
+    load_name = joinpath(data_folder, data_name)
+    @load load_name cs
+    if cs[1, 1, end] == 0
+        end_indx = size(cs)[3]-1
+    else
+        end_indx = size(cs)[3]
+    end
+    c⁻¹ = sum(cs[:, :, end_indx], dims = 2)
+
   # initiate velocities
     u= randn(1, N) #[-1, +1] #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
     u[1] = -1
@@ -68,10 +80,9 @@ for λ in ProgressBar(lambdas)
     for t in ProgressBar(t_array)
       if minimum(abs.(save_times .- t)) == 0
         if t > 0
-          print(t)
           cs[:, :, round(Int, t)]= c
+          print(maximum(c))
           if t > 10 && sum((c .- cs[:, :, round(Int, t) - 1]).^2) < 10^-10
-            print(c, t)
             cs = cs[:, :, 1:round(Int, t)]
             break
           end
@@ -80,15 +91,21 @@ for λ in ProgressBar(lambdas)
 
       dc = adv2(c, U_force*u, κ, k)
       revc = reverse(c, dims = 2)
-      @. c = c +  dc*dt + λ*dt*(c)*(1-2*c/(1 + Δconc)) + (revc-c)*dt/2
+      c² = c⁻¹.*sum(c, dims = 2).^3
+      @. c = c +  dc*dt + λ*dt*(c-0.5*c²/(1 + Δconc)) + (revc-c)*dt/2
 
       if any(isnan, c)
         print("nan")
         break
       end
-
+      if maximum(c) > 100
+        print("c too high")
+        break
+      end
     end
   
+  cs = real.(θs)
+  print(maximum(cs))  
   save_name = "mag_" * string(mag) * "_U_" * string(U_force) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(N) * ".jld2"
   @save save_name cs
 end
@@ -116,7 +133,6 @@ axis = (xlabel = "x", title = @lift("t= " * string($t_indx))),)
 lines!(fig.axis, x,  @lift(cs[:, 2, $t_indx]), color = colours[2], linewidth = 4, label = L"c_2")
 lines!(fig.axis, x,  @lift(cs[:, 1, $t_indx] + cs[:, 2, $t_indx]), color = colours[3], linewidth = 4, label = L"c_1 + c_2")
 axislegend()
-#ylims!(minimum([minimum(cs), minimum(sum(cs, dims = 2))]), maximum([maximum(cs), maximum(sum(cs, dims = 2))]))
 
 framerate = 10
 timestamps = range(start = 1, stop = end_time, step=1)
@@ -124,6 +140,4 @@ timestamps = range(start = 1, stop = end_time, step=1)
 record(fig, "test.mp4", timestamps;
         framerate = framerate) do t
     t_indx[] = t
-end
-
-(cs[:, 1, end] + cs[:, 2, end])
+        end

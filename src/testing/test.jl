@@ -26,3 +26,40 @@ p0 = [1.0]
 
 # Fitting the data to the tanh Function
 fit_result = fit_tanh(xdata, ydata)
+
+mat = rand(4, 8)
+mat[1,:] = [1, 2, 3, 4, 5, 6, 7, 8]
+mat
+conc = [1, 2, 3, 4] .*ones(4, 8)
+conc.*mat
+mat[1, :].*conc
+sum(mat[1,:].*conc, dims = 1)
+
+mat[1, :]' .* mat
+
+function create_qmn_matrix(m, n, number_of_states)
+    N = number_of_states - 1
+    if m == n
+        return -N/2
+    elseif m + 1 == n
+        return n/2
+    elseif m - 1 == n
+        return (N-n)/2
+    else
+        return 0
+    end
+end
+
+function full_qmn_matrix(number_of_states)
+    matrix = zeros(number_of_states, number_of_states)
+    for m = 0:number_of_states-1
+        for n = 0:number_of_states-1
+            matrix[m+1, n+1] = create_qmn_matrix(m, n, number_of_states)
+        end
+    end
+    return matrix
+end
+
+matrix = full_qmn_matrix(4)
+c = ones(10, 4)
+matrix[1, :]'.*c

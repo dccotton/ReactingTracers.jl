@@ -75,7 +75,7 @@ function steady_state_probabilities(number_of_states)
 end
 
 κ = 0.001     # "subgrid" kappa
-dt = 8*2/(800*κ*1024^2)#1/5250
+dt = 8*2/(80*κ*1024^2)#1/5250
 #dt = 4*2/(8*κ*1024^2)#1/5250 for £kappa = 0.001
 
 # setup grid
@@ -85,27 +85,31 @@ k  = wavenumbers(x_length)
 
 ox=ones(x_length,1);
 velocities = [1.0] #, 10, 100, 0.1, 1] #, 1, 10]
-magnitudes = [0.7] #[0.9, 0.7, 0.5, 0.1]
+magnitudes = [0.9, 0.5, 0.1]
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 #lambdas = [100.0]
 U_force = 1
 
-state_list = [100]
+state_list = [10]
 
 for number_of_states in state_list
     adv2 = adv_closure(zeros(x_length, number_of_states))
     p_list = steady_state_probabilities(number_of_states)
+    qmat = full_qmn_matrix(number_of_states)
 for U_force in velocities
 for mag in magnitudes
 for λ in ProgressBar(lambdas)
   # initiate velocities
     ulist = u_list(number_of_states)
-    u= randn(1, number_of_states) #[-1, +1] #returns a (N by 1) array of random numbers drawn from the standard normal distribution.
+    u= randn(1, number_of_states)
     for m=1:number_of_states
         u[m] = ulist[m]
     end
     # initial concentration
-    c= 1*ones(x_length,number_of_states) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
+    c= ones(x_length,number_of_states) #array of zeros, depth N, width x (i.e. conc at each point in x for each stochastic choice of v)
+    for m = 1:number_of_states
+      c[:, m] = ones(512)*p_list[m]
+    end
     dc = copy(c)
     # concentration bias
     Δconc = mag*cos.(x)
@@ -137,9 +141,9 @@ for λ in ProgressBar(lambdas)
       for m = 1:number_of_states
         c_qm_addition = zeros(x_length)
         for n = 1:number_of_states
-            #print(create_qmn_matrix(m, n, number_of_states))
             c_qm_addition = c_qm_addition + create_qmn_matrix(m-1, n-1, number_of_states)*c_old[:, n]
         end
+        #c_qm_addition = sum(qmat[m,:]'.*ones(size(c_old[1]), size(c_old[2])).*c_old, dims = 1)
         c[:, m] = c[:, m] .+ dc[:, m]*dt .+ λ*dt*c[:,m] .- dt*λ*c[:,m].^2 ./((1 .+ Δconc)*p_list[m]) .+ c_qm_addition*dt
       end
 
@@ -158,9 +162,11 @@ end
 
 end
 end
-mag  = 0.7
+
+
+mag  = 0.9
 U_force = 1.0
-λ = 100.0
+λ = 0.01
 
 data_folder = "data/gpu/kappa_0.001/100_state/"
 N=100
@@ -187,7 +193,3 @@ record(fig, "test.mp4", timestamps;
         framerate = framerate) do t
     t_indx[] = t
 end
-
-(cs[:, 1, end] + cs[:, 2, end])
-
-c= 1*ones(512,3)

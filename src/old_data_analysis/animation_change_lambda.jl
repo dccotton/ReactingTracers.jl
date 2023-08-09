@@ -167,14 +167,15 @@ end
 #11: scaled <c'^2>/<c>^2
 
 # choose what to plot
-var_choice = 2 # number to choose what to plot 
+var_choice = 6 # number to choose what to plot 
 plot_type = 2 # number to choose which panels to plot 1: one plot, 2: panels, 3: four panels, 4: animation
 panel_variable_num = 3 # choose what each panel in the animation will vary with, 1: magnitude, 2: U, 3: lambda
-line_variable_num = 2 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
+line_variable_num = 1 # choose what each line in each panel will be, 1: magnitude, 2: U, 3: lambda, 4: kappa 
+#states_to_compare_to = [2, 3, 10]
 
 compare_to_two_state = true
 compare_to_three_state = true 
-plot_approx = true #false
+plot_approx = false
 shareaxis = true # on the panel will plot all with the same axis
 no_u = false #true #false # either plot u = 0 or u non 0
 

@@ -16,7 +16,7 @@ GLMakie.activate!(inline=false)
 # NOTE WITH u = 0, cs is <c> = 1 + c' whist with u != 0, cs = c'
 
 # Stat type lists
-# 1: find range|<c>|
+#1: find range|<c>|
 #2: find K_eff
 #3: find ⟨<c'^2>(x)/(<c>^2(x)⟩
 #4: find <c>
@@ -33,20 +33,24 @@ GLMakie.activate!(inline=false)
 #16: scaled range c̅
 #17: ⟨<c'^2>(x)/(<c>^2(x)⟩ scaled to 1
 #18: scaled fourier coefficients for ⟨c'^2⟩
+#19: find <c^2>
 
 stat_type = 4
 plot_type = 3 # 1: plot with mag on x, 2: plot with u on x, 3: plot with κ\λ on x
 line_variable = 2 # 1: plot with mag, 2: plot with u, 3: plot with both mag and u, 4: plot with κ/λ, 5: plot with κ(with var u non u) # code doesn't work with 3 yet...
 num_states_to_add = 2 # 0: no new states, 1: add 2 state, 2: add 2 and 3 state, etc.
 
-states_to_add = [2, 3, 4, 10]#, 15, 20, 100]
+states_to_add = [2, 3, 10] #, 3, 4, 10]#, 15, 20, 100]
+plot_no_u = false #true
+add_inverse = true
+add_coupled = true
 
 kmax = 2 # in plotting the FT, the max number of sin and cosine fourier modes
 multiple_data = false #true
 data_line_colours = 1 # 1: colour the lines by the multiple data variable, 2: colour the lines by the line_variable
 
+
 if stat_type == 11 || stat_type == 12 || stat_type == 14 || stat_type == 18
-    print("here")
     global multiple_data
     multiple_data = true # allows multiple lines to be plotted
     multiple_data_number = 2*kmax + 1
@@ -302,11 +306,26 @@ function load_data(data_folder, state = 0)
             mag = magnitudes[m_indx]
             for n_indx = 1:length(velocities)              
                 if data_folder == "data/u_0"
-                    data_name = "mag_" * string(mag) * "_U_" * string(velocities[n_indx]) * "_lambda_" * string(lambdas[l_indx]) * ".jld2"
+                    data_name = "mag_" * string(mag) * "_kappa_" * string(1.0) * "_lambda_" * string(lambdas[l_indx]) * "_nou_FT.jld2"
                     load_name = joinpath(data_folder, data_name)
                     try
-                        @load load_name cs cf
-                        var = obtain_stat(stat_type, cs, cf)
+                        @load load_name cs cf c
+                        if cs[50, end] == 0
+                            endindx = size(cs)[2] - 1
+                            #print(cs)
+                        else
+                            endindx = size(cs)[2]
+                        end
+                        c_mean = cs[:, endindx]
+                        c_squared_mean = cs[:, endindx].^2
+                        gc=real(ifft(im*k[:,1].*fft(c_mean)));
+                        flux_mean = []
+                        var = obtain_stat_means(stat_type, c_mean, flux_mean, c_squared_mean, gc, mag, lambdas[l_indx], k)
+                        if multiple_data == true
+                            matrix[l_indx, m_indx, n_indx, :] = var
+                        else
+                            matrix[l_indx, m_indx, n_indx] = var
+                        end
                     catch systemerror
                         print("no file named" * data_name)
                         var = 0
@@ -338,9 +357,9 @@ function load_data(data_folder, state = 0)
                     load_name = joinpath(data_folder, data_name)
                     try
                         @load load_name cs
-                        c_mean = sum(cs[:, :, end], dims = 2)
+                        c_mean = sum(cs)
                         flux_mean = []
-                        c_squared_mean = []
+                        c_squared_mean = c_mean.^2
                         gc=real(ifft(im*k[:,1].*fft(c_mean)));
                         var = obtain_stat_means(stat_type, c_mean, flux_mean, c_squared_mean, gc, mag, lambdas[l_indx], k)
                         if multiple_data == true
@@ -615,51 +634,24 @@ for state in states_to_add
     line_options = (; linewidth = 4, markersize = 50, marker = markers[indx])
     plot_data(leg_type)
 end
-
-#matrix = load_data(data_folder, 2)
-##data_folder = "data/gpu/kappa_0.001/test_2_state/"
-#leg_type = "three state, "
-#leg_type = "test_two_state, "
-#line_options = (; linewidth = 4, markersize = 50, marker = markers[4])
-#plot_data(leg_type)
-
-# load in the data
-#data_folder = "data/gpu/kappa_0.001/code_fixes/"
-#matrix = load_data(data_folder)
-###if num_states_to_add == 0
-#    leg_type = ""
-#    line_options = (; linewidth = 4, markersize = 50)
-#    plot_data(leg_type)
-#elseif num_states_to_add == 1
-#    leg_type = ""
-#    data_folder = "data/gpu/kappa_0.001/code_fixes/"
-#    matrix = load_data(data_folder)
-#    line_options = (; linewidth = 4, markersize = 50)
-#    plot_data(leg_type)
-#    data_folder = "data/gpu/kappa_0.001/two_state/"
-#    matrix = load_data(data_folder)
-#    leg_type = "two state, "
-#    line_options = (; linewidth = 4, markersize = 50, marker = markers[2])
-#    plot_data(leg_type)
-#elseif num_states_to_add == 2
-#    leg_type = ""
-#    data_folder = "data/gpu/kappa_0.001/code_fixes/"
-#    matrix = load_data(data_folder)
-#    line_options = (; linewidth = 4, markersize = 50)
-#    plot_data(leg_type)
-#    data_folder = "data/gpu/kappa_0.001/two_state/"
-#    matrix = load_data(data_folder)
-#    leg_type = "two state, "
-#    line_options = (; linewidth = 4, markersize = 50, marker = markers[2])
-#    plot_data(leg_type)
-#    data_folder = "data/gpu/kappa_0.001/three_state/"
-#    data_folder = "data/gpu/kappa_0.001/test_two_state/"
-#    matrix = load_data(data_folder)
-#    leg_type = "three state, "
-#    leg_type = "test_two_state, "
-#    line_options = (; linewidth = 4, markersize = 50, marker = markers[3])
-#    plot_data(leg_type)
-#end
+if plot_no_u
+    data_folder = "data/u_0"
+    matrix = load_data(data_folder)
+    leg_type = "u = 0, "
+    line_options = (; linewidth = 4, markersize = 50, linestyle = :dash)
+    plot_data(leg_type)
+end
+indx = 1
+if add_coupled
+    for state in states_to_add
+        indx = indx+1
+        data_folder = "data/gpu/kappa_0.001/" * string(state) * "_state_coupled/"
+        matrix = load_data(data_folder, state)
+        leg_type = string(state) * " state coupled, "
+        line_options = (; linewidth = 4, markersize = 50, linestyle = :dot, marker = markers[indx])
+        plot_data(leg_type)
+    end
+end
 
 
 if line_variable !=3
@@ -695,6 +687,7 @@ ax.xlabelsize = axlabelsize
 ax.ylabelsize = axlabelsize
 ax.xticklabelsize = axticksize
 ax.yticklabelsize = axticksize
+ylims!(sqrt(1-mag^2), 1)
 
 legend = axislegend(labelsize = legendsize, nbanks = 1)
 
