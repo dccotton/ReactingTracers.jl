@@ -94,7 +94,7 @@ Q = full_qmn_matrix(number_of_states) # get the transition matrix
 
 κ = 0.001
 
-x_length = 512
+x_length = 32
 field_tuples = allocate_fields(x_length, number_of_states; arraytype = Array); # allocate all the variables and say what type of variable they are
 
 
@@ -102,7 +102,7 @@ x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 # forcing conditions
-magnitudes = [0.9, 0.5, 0.1]
+magnitudes = [0.7] # [0.9, 0.5, 0.1]
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.1, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 
 # define what the functions to
@@ -116,39 +116,36 @@ cauchy_criteria = 1e-7
 dt = minimum([0.25/(x_length  * sqrt(number_of_states)), 1/(x_length^2 * κ)])
 
 
-for δ in magnitudes
-    for λ in lambdas
-        mean_theta = Float64[]
-        simulation_parameters = (; p, Q, ∂x, Δ, us, P, P⁻¹, κ, λ, field_tuples...)
-        (; θ̇s, θs, c⁰) = field_tuples #extract
-        @. c⁰ = 1 + δ * cos(x)
-    # Initialize with c⁰ 
-    [θ .= c⁰ * p[i] for (i,θ) in enumerate(θs)] # initiate the initial concentrations with the initial probabilities
-
-    simulation_parameters = (; p, Q, ∂x, Δ, us, P, P⁻¹, κ, λ, field_tuples...)
-    (; θ̇s, θs, c⁰) = field_tuples #extract
-    cauchy_criteria = 1e-7
-    for i in ProgressBar(1:1000000)
-        rhs!(θ̇s, θs, simulation_parameters)
-        @. θs += θ̇s * dt
-        if any(isnan.(θs[1]))
-            println("nan")
-            break
-        end
-        push!(mean_theta, mean(real.(sum(θs))))
-        if i > 100000 
-            if abs(mean_theta[i] - mean_theta[i-100])/(mean_theta[i]) < cauchy_criteria
-                println(λ, "converged")
-                println(maximum(maximum(real.(θs))))
+for δ in ProgressBar(magnitudes)
+    for λ in ProgressBar(lambdas)
+            mean_theta = Float64[]
+            simulation_parameters = (; p, Q, ∂x, Δ, us, P, P⁻¹, κ, λ, field_tuples...)
+            (; θ̇s, θs, c⁰) = field_tuples # extract
+            @. c⁰ = 1 + δ * cos(x)
+            # Initialize with c⁰ 
+            [θ .= c⁰ * p[i] for (i,θ) in enumerate(θs)] # initiate the initial concentrations with the initial probabilities
+            simulation_parameters = (; p, Q, ∂x, Δ, us, P, P⁻¹, κ, λ, field_tuples...)
+            cauchy_criteria = 1e-7
+            for i in ProgressBar(1:1000000)
+            rhs!(θ̇s, θs, simulation_parameters)
+            @. θs += θ̇s * dt
+            if any(isnan.(θs[1]))
+                println("nan")
                 break
             end
+            push!(mean_theta, mean(real.(sum(θs))))
+            if i > 100000 
+                if abs(mean_theta[i] - mean_theta[i-100])/(mean_theta[i]) < cauchy_criteria
+                    println(λ, "converged")
+                    println(maximum(maximum(real.(θs))))
+                    break
+                end
+            end
         end
-    end
-    cs = real.(θs)
-    println(abs(mean_theta[end] - mean_theta[end-100])/(mean_theta[end]))
-    println(maximum(maximum(cs)))
-    save_name = "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(number_of_states) * ".jld2"
-    @save save_name cs
-
+        cs = real.(θs)
+        println(abs(mean_theta[end] - mean_theta[end-100])/(mean_theta[end]))
+        println(maximum(maximum(cs)))
+        save_name = "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(number_of_states) * "inv.jld2"
+        @save save_name cs
     end
 end

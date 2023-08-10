@@ -12,11 +12,12 @@ end
 
 # For conditional mean equations 
 function rhs!(θ̇s, θs, simulation_parameters)
-    (; p, Q, us, c⁰, ∂ˣθ, c⁰, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, c⁻¹) = simulation_parameters
-    θ² = c⁻¹ .* sum(real.(θs)).^3
+    (; p, Q, us, c⁰, ∂ˣθ, c⁰, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, c⁻¹s, θ²) = simulation_parameters
+    # θ² = c⁻¹ .* sum(real.(θs)).^3
     for (i, θ) in enumerate(θs)
         u = us[i]
         pⁱ = p[i]
+        c⁻¹ = c⁻¹s[i]
         θ̇ = θ̇s[i]
         # dynamics
         P * θ # in place fft
@@ -28,7 +29,8 @@ function rhs!(θ̇s, θs, simulation_parameters)
         [P⁻¹ * field for field in (θ, ∂ˣθ, κΔθ)] # in place ifft
         
         # compute θ̇ in real space
-        @. θ̇ = real(-u * ∂ˣθ + κΔθ + λ * (θ - pⁱ * θ²/ c⁰) )
+        @. θ² = pⁱ * (( (θ .^ 2)/pⁱ^2) * (c⁻¹ * θ)/pⁱ^2)
+        @. θ̇ = real(-u * ∂ˣθ + κΔθ + λ * (θ - θ² / c⁰))
         # transitions
         for (j, θ2) in enumerate(θs)
             Qⁱʲ = Q[i, j]
@@ -96,15 +98,16 @@ Q = full_qmn_matrix(number_of_states) # get the transition matrix
 
 κ = 0.001
 
-x_length = 512
+x_length = 32 # 512
 field_tuples = allocate_fields(x_length, number_of_states; arraytype = Array); # allocate all the variables and say what type of variable they are
-
+(; c⁰) = field_tuples 
+θ² = copy(c⁰)
 
 x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 # forcing conditions
-magnitudes = [0.9, 0.5, 0.1]
+magnitudes = [0.7]# [0.9, 0.5, 0.1]
 #lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 #lambdas = lambdas[13:end]
@@ -116,27 +119,28 @@ P = plan_fft!(field_tuples.θs[1])
 P⁻¹ = plan_ifft!(field_tuples.θs[1])
 
 
-cauchy_criteria = 1e-7
+cauchy_criteria = 1e-8
 t_mult = 1
-dt = minimum([0.25/(t_mult*x_length  * sqrt(number_of_states)), 1/(t_mult*x_length^2 * κ)])
+dt = minimum([0.25/(t_mult*x_length  * sqrt(number_of_states)), 1/(t_mult*x_length^2 * κ)]) / 3
 
-
+vectorlist = Vector{Vector{Float64}}[]
+meanthetalist = Float64[]
 
 for δ in magnitudes
-    for (lindx, λ) in enumerate(lambdas)
-        
+    for (lindx, λ) in ProgressBar(enumerate(lambdas)  )
         mean_theta = Float64[]
         # load in c⁻¹
-        data_folder = "data/gpu/kappa_0.001/" * string(number_of_states) * "_state_inverse/"
-        data_name =  "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(λ) * "_k_" * string(0.001) * "_N_" * string(number_of_states) * ".jld2"
+        data_folder = pwd() * "/" # "data/gpu/kappa_0.001/" * string(number_of_states) * "_state_inverse/"
+        data_name =  "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(λ) * "_k_" * string(0.001) * "_N_" * string(number_of_states) * "inv.jld2"
         load_name = joinpath(data_folder, data_name)
         @load load_name cs
-        c⁻¹ = sum(cs)
-        
-        simulation_parameters = (; p, Q, ∂x, Δ, us, P, P⁻¹, κ, λ, c⁻¹, field_tuples...)
+        c⁻¹s = cs # sum(cs)
         (; θ̇s, θs, c⁰) = field_tuples #extract
-
         @. c⁰ = 1 + δ * cos(x)
+        
+        simulation_parameters = (; p, Q, ∂x, Δ, us, P, P⁻¹, κ, λ, c⁻¹s, θ², field_tuples...)
+
+        
         # Initialize with c⁰ 
         [θ .= c⁰ * p[i] for (i,θ) in enumerate(θs)] # initiate the initial concentrations with the initial probabilities
 
@@ -154,7 +158,7 @@ for δ in magnitudes
             #[θ .= cs[i] for (i,θ) in enumerate(θs)]
         #end
 
-    for i in ProgressBar(1:10000000*t_mult)
+    for i in 1:10000000*t_mult
         rhs!(θ̇s, θs, simulation_parameters)
         @. θs += θ̇s * dt
         if any(isnan.(θs[1]))
@@ -165,16 +169,20 @@ for δ in magnitudes
         if i > 100000 
             if abs(mean_theta[i] - mean_theta[i-100])/abs(mean_theta[i]) < cauchy_criteria
                 println(λ, "converged")
-                println(maximum(maximum(real.(θs))))
+                # println(maximum(maximum(real.(θs))))
+                println(mean(real.(sum(θs))))
                 break
             end
         end
     end
     cs = real.(θs)
-    println(abs(mean_theta[end] - mean_theta[end-100])/abs(mean_theta[end]))
-    println(maximum(maximum(cs)))
+    push!(vectorlist, cs)
+    push!(meanthetalist, mean(sum(cs)))
+    # println(abs(mean_theta[end] - mean_theta[end-100])/abs(mean_theta[end]))
+    # println(maximum(maximum(cs)))
     save_name = "mag_" * string(δ) * "_U_" * string(1.0) * "_lambda_" * string(λ) * "_k_" * string(κ) * "_N_" * string(number_of_states) * ".jld2"
     @save save_name cs mean_theta
 
     end
 end
+##
