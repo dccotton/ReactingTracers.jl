@@ -89,7 +89,7 @@ function full_qmn_matrix(number_of_states)
     return matrix
 end
 
-number_of_states = 3
+number_of_states = 2
 p = construct_p(number_of_states) # get the probabilities
 us = u_list(number_of_states) # get the velocities
 Q = full_qmn_matrix(number_of_states) # get the transition matrix
@@ -104,7 +104,7 @@ x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 # forcing conditions
-magnitudes = [0.7]#, 0.9, 0.5, 0.1]
+magnitudes = [0.9, 0.5, 0.1]
 #lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 #lambdas = lambdas[13:end]
@@ -117,7 +117,7 @@ P⁻¹ = plan_ifft!(field_tuples.θs[1])
 
 
 cauchy_criteria = 1e-7
-t_mult = 100
+t_mult = 1
 dt = minimum([0.25/(t_mult*x_length  * sqrt(number_of_states)), 1/(t_mult*x_length^2 * κ)])
 
 
