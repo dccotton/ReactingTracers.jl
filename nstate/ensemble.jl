@@ -6,75 +6,105 @@ using Statistics
 using HDF5
 using Random
 using LinearAlgebra
-using MarkovChainHammer.Trajectory: generate
-using MarkovChainHammer.TransitionMatrix: steady_state
+using MarkovChainHammer
 GLMakie.activate!(inline=false)
 Random.seed!(1234)
 rng = MersenneTwister(1234);
 
-N = 32
-Nₑ = 3
+N  = 4
+Nₛ = 3
+Nₑ = 10^4
+Nₜ = 10^7
+timesteps = 10^5
 
-Q = ou_transition_matrix(Nₑ)
-u⃗ = ou_velocity_fields(Nₑ)
+Q = ou_transition_matrix(Nₛ)
+u⃗ = ou_velocity_fields(Nₛ)
 Λ, V =  eigen(Q)
 p = steady_state(Q)
-V[:, end] .= p
-[V[:, end-i] ./= V[1, end-i] for i in 1:Nₑ-1]
-W = inv(V)
 
-𝒩 = zeros(N, N, Nₑ)
-ϕ = randn(ComplexF64, N,N, Nₑ)
-ϕ̇ = randn(ComplexF64, N,N, Nₑ)
-x = nodes(N; a = 0, b = 2π)
-k = wavenumbers(N; L = 2π)
-x₁ = reshape(x, (N, 1, 1))
-x₂ = reshape(x, (1, N, 1))
-k₁ = reshape(k, (N, 1, 1))
-k₂ = reshape(k, (1, N, 1))
-Δ = @.  -(k₁^2 + k₂^2)
-Δ⁻¹ = @. 1.0 / Δ 
-Δ⁻¹[1] = 0.0
-
-ℱ = plan_fft!(ϕ, (1,2))
-ℱ⁻¹ = plan_ifft!(ϕ, (1,2))
-@. ϕ = sin(x₁) * cos(x₂)
 ##
-function auxiliary_fields(ϕ, x₁, x₂)
-    ϕ³ = similar(ϕ) 
-    Δϕ = similar(ϕ)
-    s = similar(ϕ) # source term, zero for now
-    @. s = 0.0 * sin(3*x₁) * sin(3*x₂)
-    return (; ϕ³, Δϕ, s, x₁, x₂)
-end
-
-κᵩ = 0.0025 # 0.0025 for N = 32
-A = 1.0
-operators = (; Δ, Δ⁻¹, ℱ, ℱ⁻¹)
-auxiliary = auxiliary_fields(ϕ, x₁, x₂)
-constants = (; κᵩ, A)
-parameters = (; operators, auxiliary, constants)
-
-
-function rhs!(ϕ̇, ϕ, t, parameters)
-    (; Δ, Δ⁻¹,ℱ, ℱ⁻¹) = parameters.operators
-    (; ϕ³, Δϕ,  s, x₁, x₂) = parameters.auxiliary
-    (; κᵩ, A) = parameters.constants
-    ϕ .= real.(ϕ)
-    ℱ * ϕ # compute ϕ̂
-    @. Δϕ = κᵩ * Δ * ϕ 
-    ℱ⁻¹ * Δϕ # compute Δϕ
-    ℱ⁻¹ * ϕ
-    @. ϕ³ = ϕ^3
-    s .=  0.0 * mean(ϕ, dims = (1,2)) # zero for now
-    @. ϕ̇ = real( Δϕ + A * (ϕ - ϕ³) - s)
+function rhs!(θ̇, θ, t, simulation_parameters)
+    (; u, c⁰, ∂ˣθ, c⁰, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, θ²) = simulation_parameters
+    # dynamics
+    P * θ # in place fft
+    # ∇θ
+    @. ∂ˣθ = ∂x * θ
+    # κΔθ
+    @. κΔθ = κ * Δ * θ
+    # go back to real space 
+    [P⁻¹ * field for field in (θ, ∂ˣθ, κΔθ)] # in place ifft
+    # compute θ̇ in real space
+    @. θ² = θ .^ 2
+    @. θ̇ = real(-u * ∂ˣθ + κΔθ + λ * (θ - θ² / c⁰))
     return nothing
 end
 
-function score(ϕ, parameters)
-    s = copy(ϕ)
-    rhs!(s, ϕ, [0.0], parameters)
-    return real.(s)
+##
+# generate ensemble timeseries
+
+λ = 1.0
+U = 1.0
+δ = 0.7
+κ = 1e-3
+x = reshape(nodes(N), (N, 1))
+k  = reshape(wavenumbers(N), (N, 1))
+∂x = im * k
+Δ = -k.^2
+
+c⁰ = @.  1 + δ * cos(x)
+θ = zeros(N, Nₑ) .+ im
+θ .= c⁰
+∂ˣθ = similar(θ)
+κΔθ = similar(θ)
+θ̇ = similar(θ)
+θ² = similar(θ)
+P = plan_fft!(θ,  1)
+P⁻¹ = plan_ifft!(θ, 1)
+
+u = reshape(zeros(Nₑ), (1, Nₑ))
+runge_kutta = RungeKutta4(θ)
+simulation_parameters = (; u, c⁰, ∂ˣθ, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, θ²) 
+##
+cfl = 0.9
+dt = cfl * minimum([ (x[2]-x[1]) / maximum(u⃗), 1/λ, (x[2]-x[1])^2/κ])
+ms = zeros(Int, Nₑ, timesteps)
+for i in ProgressBar(1:Nₑ)
+    ms[i, :] .= generate(Q, timesteps; dt = dt) 
+end
+##
+for i in ProgressBar(1:timesteps)
+    u .= U * reshape(u⃗[ms[:, i]], (1, Nₑ))
+    runge_kutta(rhs!, θ, simulation_parameters, dt)
+    θ .= runge_kutta.xⁿ⁺¹
+    # rhs!(θ̇, θ, simulation_parameters)
+    # @. θ += θ̇ * dt
+    if any(isnan.(θ[1]))
+        println("nan")
+        break
+    end
 end
 
-rk = RungeKutta4(ϕ)
+##
+fig = Figure() 
+ax11 = Axis(fig[1,1])
+for i in 1:30
+    lines!(ax11, real.(θ[:, i]), color = (:blue, 0.2))
+end
+lines!(ax11, real.(c⁰[:, 1]), color = :black, linewidth = 3, linestyle = :dash)
+ylims!(ax11, (1-δ,   1+δ))
+lines!(ax11, real.(mean(θ, dims = 2))[:], color = :red, linewidth = 3)
+lines!(ax11, real.(mean(θ, dims = 2) .* 0 .+ sqrt(1- δ^2))[:], color = :black, linewidth = 6, linestyle = :dot)
+ylims!(ax11, (1-δ,   1+δ))
+ax12 = Axis(fig[1,2])
+lines!(ax12,  mean((real.(θ) .- real.(mean(θ, dims = 2))).^2, dims = 2)[:] )
+ylims!(ax12, (0,   sqrt(1-δ^2)))
+Θs = []
+ax21 = Axis(fig[2, 1])
+for i in 1:Nₛ
+    push!(Θs, real.(mean(θ[:, ms[:, end] .== i], dims = 2)[:]))
+    lines!(ax21, Θs[i])
+end
+# ylims!(ax12, (1-δ,   1+δ))
+ax22 = Axis(fig[2, 2])
+lines!(ax22, real.(mean(∂ˣθ, dims = 2)[:]), real.(mean(u .* θ, dims = 2)[:]), color = :black)
+display(fig)
