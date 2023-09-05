@@ -107,7 +107,7 @@ x = nodes(x_length, a = -pi, b = pi)
 k  = wavenumbers(x_length)
 
 # forcing conditions
-magnitudes = [0.7]# [0.9, 0.5, 0.1]
+magnitudes = [0.7] # [0.9, 0.5, 0.1]
 #lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 0.01, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 lambdas = sort([1.0, 1.5, 0.5, 0.1, 10, 100, 0.2, 0.4, 0.6, 0.8, 1.2, 1.4, 1.7, 2.0, 3.0, 5.0, 7.0])
 #lambdas = lambdas[13:end]
