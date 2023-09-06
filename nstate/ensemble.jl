@@ -11,9 +11,9 @@ GLMakie.activate!(inline=false)
 Random.seed!(1234)
 rng = MersenneTwister(1234);
 
-N  = 16
-Nₛ = 2
-Nₑ = 10^4
+N  = 32
+Nₛ = 3
+Nₑ = 10^2
 Nₜ = 10^7
 timesteps = 10^5
 
@@ -39,11 +39,27 @@ function rhs!(θ̇, θ, t, simulation_parameters)
     return nothing
 end
 
+function ql_rhs!(θ̇, θ, t, simulation_parameters)
+    (; u, c⁰, ∂ˣθ, c⁰, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, θ²) = simulation_parameters
+    # dynamics
+    P * θ # in place fft
+    # ∇θ
+    @. ∂ˣθ = ∂x * θ
+    # κΔθ
+    @. κΔθ = κ * Δ * θ
+    # go back to real space 
+    [P⁻¹ * field for field in (θ, ∂ˣθ, κΔθ)] # in place ifft
+    # compute θ̇ in real space
+    θ² .= sum(θ, dims = 2) .^2 + 2 * θ .* sum(θ, dims = 2) .+ (θ .-sum(θ, dims = 2)) .^2 
+    @. θ̇ = real(-u * ∂ˣθ + κΔθ + λ * (θ - θ² / c⁰))
+    return nothing
+end
+
 ##
 # generate ensemble timeseries
 
 λ = 1.0
-λs = [0.1]# [0.01, collect(range(0.1, 3, length = 11))..., 5, 10]
+λs = [1.0]# [0.01, collect(range(0.1, 3, length = 11))..., 5, 10]
 
 U = 1.0
 δ = 0.7

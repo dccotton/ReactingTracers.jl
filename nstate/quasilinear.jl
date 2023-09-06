@@ -11,7 +11,7 @@ GLMakie.activate!(inline=false)
 Random.seed!(1234)
 rng = MersenneTwister(1234);
 
-N  = 16
+N  = 32
 Nₛ = 3
 Nₑ = 10^4
 Nₜ = 10^7
@@ -39,11 +39,27 @@ function rhs!(θ̇, θ, t, simulation_parameters)
     return nothing
 end
 
+function ql_rhs!(θ̇, θ, t, simulation_parameters)
+    (; u, c⁰, ∂ˣθ, c⁰, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, θ²) = simulation_parameters
+    # dynamics
+    P * θ # in place fft
+    # ∇θ
+    @. ∂ˣθ = ∂x * θ
+    # κΔθ
+    @. κΔθ = κ * Δ * θ
+    # go back to real space 
+    [P⁻¹ * field for field in (θ, ∂ˣθ, κΔθ)] # in place ifft
+    # compute θ̇ in real space
+    θ² .= mean(θ, dims = 2) .^2 .+ 2 * (θ .- mean(θ, dims = 2)) .* mean(θ, dims = 2) .+ mean((θ .-mean(θ, dims = 2)) .^2, dims = 2)
+    @. θ̇ = real(-u * ∂ˣθ + κΔθ + λ * (θ - θ² / c⁰))
+    return nothing
+end
+
 ##
 # generate ensemble timeseries
 
 λ = 1.0
-λs = [0.01, collect(range(0.1, 3, length = 11))..., 5, 10]
+λs = [1.0]# [0.01, collect(range(0.1, 3, length = 11))..., 5, 10]
 
 U = 1.0
 δ = 0.7
@@ -69,7 +85,7 @@ runge_kutta = RungeKutta4(θ)
 for λ ∈ ProgressBar(λs)
     simulation_parameters = (; u, c⁰, ∂ˣθ, P, P⁻¹, ∂x, κ, Δ, κΔθ, λ, θ²) 
     ##
-    cfl = 0.9
+    cfl = 0.9 # 0.9 # 0.9
     dt = cfl * minimum([ (x[2]-x[1]) / maximum(u⃗), 1/λ, (x[2]-x[1])^2/κ])
     ms = ones(Int, Nₑ, timesteps)
     for i in ProgressBar(1:Nₑ)
@@ -78,7 +94,7 @@ for λ ∈ ProgressBar(λs)
     ##
     for i in ProgressBar(1:timesteps)
         u .= U * reshape(u⃗[ms[:, i]], (1, Nₑ))
-        runge_kutta(rhs!, θ, simulation_parameters, dt)
+        runge_kutta(ql_rhs!, θ, simulation_parameters, dt)
         θ .= runge_kutta.xⁿ⁺¹
         if any(isnan.(θ[1]))
             println("nan")
@@ -113,9 +129,9 @@ for λ ∈ ProgressBar(λs)
     # xlims!(ax22, (-0.5, 0.5))
     display(fig)
     ##
-    save("λ_$(λ)_δ_$(δ)_quick_fig.png", fig)
+    save("λ_$(λ)_δ_$(δ)_n_$(Nₛ)_quick_fig_ql.png", fig)
     ##
-    hfile = h5open("λ_$(λ)_δ_$(δ)_quick_data.hdf5", "w")
+    hfile = h5open("λ_$(λ)_δ_$(δ)_n_$(Nₛ)_quick_data_ql.hdf5", "w")
     hfile["u"] = u
     hfile["θ"] = real.(θ)
     hfile["dxθ"] = real.(∂ˣθ)
